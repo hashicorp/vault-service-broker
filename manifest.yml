@@ -1,0 +1,7 @@
+---
+applications:
+  - name: vault-broker
+    command: vault-broker
+    env:
+      GOVERSION: go1.7
+      GOPACKAGENAME: github.com/hashicorp/cf-vault-broker
