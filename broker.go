@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"sync"
+
+	"github.com/pkg/errors"
 
 	"code.cloudfoundry.org/lager"
 
@@ -35,6 +38,9 @@ var _ brokerapi.ServiceBroker = (*Broker)(nil)
 type Broker struct {
 	log    lager.Logger
 	client *api.Client
+
+	// mountMutex is the
+	mountMutex sync.Mutex
 
 	shutdown     bool
 	shutdownCh   chan struct{}
@@ -225,7 +231,54 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		"instance-id": instanceID,
 	})
 
-	return brokerapi.Binding{}, nil
+	binding := brokerapi.Binding{}
+	roleName := "cf-" + instanceID
+
+	// Create the secret
+	renewable := true
+	secret, err := b.client.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
+		Policies:       []string{},
+		Metadata:       map[string]string{},
+		TTL:            "",
+		ExplicitMaxTTL: "",
+		DisplayName:    "",
+		Renewable:      &renewable,
+	}, roleName)
+	if err != nil {
+		b.log.Error("failed creating secret", err)
+		return binding, err
+	}
+	if secret.Auth == nil {
+		err = errors.New("secret as no auth")
+		b.log.Error("failed creating secret", err)
+		return binding, err
+	}
+
+	// Ensure the generic secret backend at cf/broker is mounted.
+	if err := b.IdempotentMounts(map[string]string{
+		"cf/broker": "generic",
+	}); err != nil {
+		defer b.RevokeAccessor(secret.Auth.Accessor)
+		b.log.Error("failed creating mounts", err)
+		return binding, err
+	}
+
+	// Store the token and metadata in the generic secret backend
+	path := "cf/broker/" + instanceID + "/" + bindingID
+	if _, err := b.client.Logical().Write(path, map[string]interface{}{
+		"token":       nil,
+		"last_renew":  nil,
+		"expire_time": nil,
+	}); err != nil {
+		defer b.RevokeAccessor(secret.Auth.Accessor)
+		b.log.Error("failed to commit to broker", err)
+		return binding, err
+	}
+
+	// Save the credentials
+	binding.Credentials = nil
+
+	return binding, nil
 }
 
 func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, details brokerapi.UnbindDetails) error {
@@ -250,4 +303,44 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 	})
 
 	return brokerapi.LastOperation{}, nil
+}
+
+// RevokeAccessor revokes the given token by accessor.
+func (b *Broker) RevokeAccessor(a string) {
+	if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
+		b.log.Error("failed revoking accessor", err)
+	}
+}
+
+// IdempotentMounts takes a list of mounts and their desired paths and mounts the
+// backend at that path. The key is the path and the value is the type of
+// backend to mount.
+func (b *Broker) IdempotentMounts(m map[string]string) error {
+	b.mountMutex.Lock()
+	defer b.mountMutex.Unlock()
+	result, err := b.client.Sys().ListMounts()
+	if err != nil {
+		return err
+	}
+
+	// Strip all leading and trailing things
+	mounts := make(map[string]struct{})
+	for k, _ := range result {
+		k = strings.Trim(k, "/")
+		mounts[k] = struct{}{}
+	}
+
+	for k, v := range m {
+		k = strings.Trim(k, "/")
+		if _, ok := mounts[k]; ok {
+			continue
+		}
+		if err := b.client.Sys().Mount(k, &api.MountInput{
+			Type: v,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
