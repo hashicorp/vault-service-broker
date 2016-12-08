@@ -14,6 +14,14 @@ type Broker struct {
 	log lager.Logger
 }
 
+func (b *Broker) Start() error {
+	return nil
+}
+
+func (b *Broker) Stop() error {
+	return nil
+}
+
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	b.log.Debug("building services catalog")
 	return nil
