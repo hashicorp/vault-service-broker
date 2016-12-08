@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"code.cloudfoundry.org/lager"
 
 	uuid "github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/vault/api"
 	"github.com/pivotal-cf/brokerapi"
 )
 
@@ -34,15 +36,63 @@ var (
 )
 
 type Broker struct {
-	log lager.Logger
+	log    lager.Logger
+	client *api.Client
+
+	shutdown     bool
+	shutdownCh   chan struct{}
+	doneCh       chan struct{}
+	shutdownLock sync.Mutex
 }
 
+// Start is used to start the broker
 func (b *Broker) Start() error {
+	b.shutdownLock.Lock()
+	defer b.shutdownLock.Unlock()
+
+	// Do nothing if started
+	if b.shutdownCh != nil {
+		return nil
+	}
+
+	// Start the run loop
+	b.shutdown = false
+	b.shutdownCh = make(chan struct{})
+	b.doneCh = make(chan struct{})
+	go b.run(b.shutdownCh, b.doneCh)
 	return nil
 }
 
+// Stop is used to shutdown the broker
 func (b *Broker) Stop() error {
+	b.shutdownLock.Lock()
+	defer b.shutdownLock.Unlock()
+
+	// Do nothing if shutdown
+	if b.shutdown {
+		return nil
+	}
+
+	// Signal shutdown and wait for exit
+	b.shutdown = true
+	close(b.shutdownCh)
+	<-b.doneCh
+
+	// Cleanup
+	b.shutdownCh = nil
+	b.doneCh = nil
 	return nil
+}
+
+// run is the long running broker routine
+func (b *Broker) run(stopCh chan struct{}, doneCh chan struct{}) {
+	defer close(doneCh)
+	for {
+		select {
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {

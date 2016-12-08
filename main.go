@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"code.cloudfoundry.org/lager"
+	"github.com/hashicorp/vault/api"
 	"github.com/pivotal-cf/brokerapi"
 )
 
@@ -36,9 +37,17 @@ func main() {
 	log := lager.NewLogger("vault-broker")
 	log.RegisterSink(lager.NewWriterSink(os.Stderr, logLevel))
 
+	// Setup the vault client
+	client, err := api.NewClient(nil)
+	if err != nil {
+		log.Error("main: failed to setup Vault client", err)
+		os.Exit(1)
+	}
+
 	// Setup the broker
 	broker := &Broker{
-		log: log,
+		log:    log,
+		client: client,
 	}
 	log.Info("main: starting broker")
 	if err := broker.Start(); err != nil {
