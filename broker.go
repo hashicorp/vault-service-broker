@@ -255,7 +255,7 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	}
 
 	// Ensure the generic secret backend at cf/broker is mounted.
-	if err := b.IdempotentMounts(map[string]string{
+	if err := b.IdempotentMount(map[string]string{
 		"cf/broker": "generic",
 	}); err != nil {
 		defer b.RevokeAccessor(secret.Auth.Accessor)
@@ -312,10 +312,10 @@ func (b *Broker) RevokeAccessor(a string) {
 	}
 }
 
-// IdempotentMounts takes a list of mounts and their desired paths and mounts the
+// IdempotentMount takes a list of mounts and their desired paths and mounts the
 // backend at that path. The key is the path and the value is the type of
 // backend to mount.
-func (b *Broker) IdempotentMounts(m map[string]string) error {
+func (b *Broker) IdempotentMount(m map[string]string) error {
 	b.mountMutex.Lock()
 	defer b.mountMutex.Unlock()
 	result, err := b.client.Sys().ListMounts()
@@ -338,6 +338,36 @@ func (b *Broker) IdempotentMounts(m map[string]string) error {
 		if err := b.client.Sys().Mount(k, &api.MountInput{
 			Type: v,
 		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// IdempotentUnmount takes a list of mount paths and removes them if and only
+// if they currently exist.
+func (b *Broker) IdempotentUnmount(l []string) error {
+	b.mountMutex.Lock()
+	defer b.mountMutex.Unlock()
+	result, err := b.client.Sys().ListMounts()
+	if err != nil {
+		return err
+	}
+
+	// Strip all leading and trailing things
+	mounts := make(map[string]struct{})
+	for k, _ := range result {
+		k = strings.Trim(k, "/")
+		mounts[k] = struct{}{}
+	}
+
+	for _, k := range l {
+		k = strings.Trim(k, "/")
+		if _, ok := mounts[k]; !ok {
+			continue
+		}
+		if err := b.client.Sys().Unmount(k); err != nil {
 			return err
 		}
 	}
