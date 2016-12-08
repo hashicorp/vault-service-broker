@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -25,15 +25,12 @@ const (
 
 	// VaultPlanDescription is the description of the plan
 	VaultPlanDescription = "Secure access to a multi-tenant HashiCorp Vault cluster"
+
+	// VaultPeriodicTTL is the token role periodic TTL.
+	VaultPeriodicTTL = 5 * 86400
 )
 
-var (
-	// Verify the ServiceBroker implementes the brokerapi.
-	_ brokerapi.ServiceBroker = (*Broker)(nil)
-
-	// ErrNotImplemented is the error returned when a signature is not implemented.
-	ErrNotImplemented = errors.New("not implemented")
-)
+var _ brokerapi.ServiceBroker = (*Broker)(nil)
 
 type Broker struct {
 	log    lager.Logger
@@ -121,19 +118,104 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	}
 }
 
+// Provision is used to setup a new instance of Vault tenant. For each
+// tenant we create a new Vault policy called "cf-instanceID". This is
+// granted access to the service, space, and org contexts. We then create
+// a token role called "cf-instanceID" which is periodic. Lastly, we mount
+// the backends for the instance, and optionally for the space and org if
+// they do not exist yet.
 func (b *Broker) Provision(ctx context.Context, instanceID string, details brokerapi.ProvisionDetails, async bool) (brokerapi.ProvisionedServiceSpec, error) {
 	b.log.Debug("provisioning new instance", lager.Data{
 		"instance-id": instanceID,
+		"org-id":      details.OrganizationGUID,
+		"space-id":    details.SpaceGUID,
 	})
 
+	// Generate the new policy
+	var buf bytes.Buffer
+	inp := ServicePolicyTemplateInput{
+		ServiceID:   instanceID,
+		SpaceID:     details.SpaceGUID,
+		SpacePolicy: "write",
+		OrgID:       details.OrganizationGUID,
+		OrgPolicy:   "read",
+	}
+	if err := GeneratePolicy(&buf, &inp); err != nil {
+		b.log.Error("broker: failed to generate policy", err)
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to generate policy: %v", err)
+	}
+
+	// Create the new policy
+	policyName := "cf-" + instanceID
+	sys := b.client.Sys()
+	b.log.Info(fmt.Sprintf("broker: creating new policy: %s", policyName))
+	if err := sys.PutPolicy(policyName, string(buf.Bytes())); err != nil {
+		b.log.Error("broker: failed to create policy", err)
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to create policy: %v", err)
+	}
+
+	// Create the new token role
+	path := "/auth/token/roles/cf-" + instanceID
+	data := map[string]interface{}{
+		"allowed_policies": []string{policyName},
+		"period":           VaultPeriodicTTL,
+		"renewable":        true,
+	}
+	b.log.Info(fmt.Sprintf("broker: creating new token role: %s", path))
+	if _, err := b.client.Logical().Write(path, data); err != nil {
+		b.log.Error("broker: failed to create token role", err)
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to create token role: %v", err)
+	}
+
+	// Determine the mounts we need
+	mounts := map[string]string{
+		"/cf/" + details.OrganizationGUID + "/secret": "generic",
+		"/cf/" + details.SpaceGUID + "/secret":        "generic",
+		"/cf/" + instanceID + "/secret":               "generic",
+		"/cf/" + instanceID + "/transit":              "transit",
+	}
+
+	// TODO: Mount the backends
+	b.log.Info(fmt.Sprintf("broker: setting up mounts: %#v", mounts))
+	if mounts != nil {
+		b.log.Error("broker: failed to setup mounts", nil)
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to setup mounts: %v", nil)
+	}
+
+	// Done
 	return brokerapi.ProvisionedServiceSpec{}, nil
 }
 
+/*
+Broker unmounts all backends under /cf/SvcID/ (BTV)
+*/
+
+// Deprovision is used to remove a tenant of Vault. We use this to
+// remove all the backends of the tenant, delete the token role, and policy.
 func (b *Broker) Deprovision(ctx context.Context, instanceID string, details brokerapi.DeprovisionDetails, async bool) (brokerapi.DeprovisionServiceSpec, error) {
 	b.log.Debug("deprovisioning new instance", lager.Data{
 		"instance-id": instanceID,
 	})
 
+	// TODO: Unmount the backends
+
+	// Delete the token role
+	path := "/auth/token/roles/cf-" + instanceID
+	b.log.Info(fmt.Sprintf("broker: deleting token role: %s", path))
+	if _, err := b.client.Logical().Delete(path); err != nil {
+		b.log.Error("broker: failed to delete token role", err)
+		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("failed to delete token role: %v", err)
+	}
+
+	// Delete the token policy
+	policyName := "cf-" + instanceID
+	b.log.Info(fmt.Sprintf("broker: deleting policy: %s", policyName))
+	if err := b.client.Sys().DeletePolicy(policyName); err != nil {
+		b.log.Error("broker: failed to delete policy", err)
+		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("failed to delete policy: %v", err)
+	}
+
+	// Done!
 	return brokerapi.DeprovisionServiceSpec{}, nil
 }
 
@@ -155,12 +237,17 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	return nil
 }
 
-// Update is not implemented.
 func (b *Broker) Update(ctx context.Context, instanceID string, details brokerapi.UpdateDetails, async bool) (brokerapi.UpdateServiceSpec, error) {
-	return brokerapi.UpdateServiceSpec{}, ErrNotImplemented
+	b.log.Debug("updating service", lager.Data{
+		"instance-id": instanceID,
+	})
+	return brokerapi.UpdateServiceSpec{}, nil
 }
 
-// LastOperation is not implemented.
 func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
-	return brokerapi.LastOperation{}, ErrNotImplemented
+	b.log.Debug("returning last operation", lager.Data{
+		"instance-id": instanceID,
+	})
+
+	return brokerapi.LastOperation{}, nil
 }
