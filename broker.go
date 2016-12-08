@@ -2,10 +2,26 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"code.cloudfoundry.org/lager"
 
+	uuid "github.com/hashicorp/go-uuid"
 	"github.com/pivotal-cf/brokerapi"
+)
+
+const (
+	// VaultBrokerName is the name we use for the broker
+	VaultBrokerName = "vault"
+
+	// VaultBrokerDescription is the description we use for the broker
+	VaultBrokerDescription = "HashiCorp Vault Service Broker"
+
+	// VaultPlanName is the name of our plan, only one supported
+	VaultPlanName = "default"
+
+	// VaultPlanDescription is the description of the plan
+	VaultPlanDescription = "Secure access to a multi-tenant HashiCorp Vault cluster"
 )
 
 var _ brokerapi.ServiceBroker = (*Broker)(nil)
@@ -23,8 +39,29 @@ func (b *Broker) Stop() error {
 }
 
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
-	b.log.Debug("building services catalog")
-	return nil
+	b.log.Debug("broker: providing services catalog")
+	brokerID, err := uuid.GenerateUUID()
+	if err != nil {
+		b.log.Fatal("broker: failed to generate ID", err)
+	}
+	return []brokerapi.Service{
+		brokerapi.Service{
+			ID:            brokerID,
+			Name:          VaultBrokerName,
+			Description:   VaultBrokerDescription,
+			Tags:          []string{},
+			Bindable:      true,
+			PlanUpdatable: false,
+			Plans: []brokerapi.ServicePlan{
+				brokerapi.ServicePlan{
+					ID:          fmt.Sprintf("%s.%s", brokerID, VaultPlanName),
+					Name:        VaultPlanName,
+					Description: VaultPlanDescription,
+					Free:        brokerapi.FreeValue(true),
+				},
+			},
+		},
+	}
 }
 
 func (b *Broker) Provision(ctx context.Context, instanceID string, details brokerapi.ProvisionDetails, async bool) (brokerapi.ProvisionedServiceSpec, error) {
