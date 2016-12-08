@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"code.cloudfoundry.org/lager"
@@ -24,7 +25,13 @@ const (
 	VaultPlanDescription = "Secure access to a multi-tenant HashiCorp Vault cluster"
 )
 
-var _ brokerapi.ServiceBroker = (*Broker)(nil)
+var (
+	// Verify the ServiceBroker implementes the brokerapi.
+	_ brokerapi.ServiceBroker = (*Broker)(nil)
+
+	// ErrNotImplemented is the error returned when a signature is not implemented.
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 type Broker struct {
 	log lager.Logger
@@ -98,17 +105,12 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	return nil
 }
 
+// Update is not implemented.
 func (b *Broker) Update(ctx context.Context, instanceID string, details brokerapi.UpdateDetails, async bool) (brokerapi.UpdateServiceSpec, error) {
-	b.log.Debug("updating service", lager.Data{
-		"instance-id": instanceID,
-	})
-	return brokerapi.UpdateServiceSpec{}, nil
+	return brokerapi.UpdateServiceSpec{}, ErrNotImplemented
 }
 
+// LastOperation is not implemented.
 func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
-	b.log.Debug("returning last operation", lager.Data{
-		"instance-id": instanceID,
-	})
-
-	return brokerapi.LastOperation{}, nil
+	return brokerapi.LastOperation{}, ErrNotImplemented
 }
