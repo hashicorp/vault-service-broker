@@ -159,5 +159,5 @@
 			"revisionTime": "2016-12-02T16:40:13Z"
 		}
 	],
-	"rootPath": "github.com/hashicorp/consul-template"
+	"rootPath": "github.com/hashicorp/cf-vault-broker"
 }

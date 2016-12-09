@@ -6,7 +6,7 @@ CURRENT_DIR := $(CURRENT_DIR:/=)
 # Get the project metadata
 GOVERSION := 1.7.4
 VERSION := 0.1.0
-PROJECT := github.com/hashicorp/consul-template
+PROJECT := github.com/hashicorp/cf-vault-broker
 OWNER := $(dir $(PROJECT))
 OWNER := $(notdir $(OWNER:/=))
 NAME := $(notdir $(PROJECT))
