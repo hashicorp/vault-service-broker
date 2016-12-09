@@ -121,8 +121,46 @@ func (b *Broker) listDir(dir string) ([]string, error) {
 }
 
 // restoreBind is used to restore a binding
-func (b *Broker) restoreBind(instanceID, bindID string) error {
-	// TODO
+func (b *Broker) restoreBind(instanceID, bindingID string) error {
+	// Read from Vault
+	path := "cf/broker/" + instanceID + "/" + bindingID
+	secret, err := b.client.Logical().Read(path)
+	if err != nil {
+		b.log.Error("broker: failed to read binding info", err)
+		return fmt.Errorf("failed to read binding info: %v", err)
+	}
+	if secret == nil {
+		return nil
+	}
+
+	// Decode the binding info
+	info := new(bindingInfo)
+	if err := mapstructure.Decode(secret.Data, info); err != nil {
+		b.log.Error("broker: failed to decode binding info", err)
+		return fmt.Errorf("failed to decode binding info: %v", err)
+	}
+
+	// Determine when we should renew
+	nextRenew := info.Renew.Add(time.Duration(info.LeaseDuration/2) * time.Second)
+	now := time.Now().UTC()
+
+	// Determine when we should first first
+	var renewIn time.Duration
+	if nextRenew.Before(now) {
+		renewIn = 5 * time.Second // Schedule immediate renew
+	} else {
+		renewIn = nextRenew.Sub(now)
+	}
+
+	// Setup Renew timer
+	info.timer = time.AfterFunc(renewIn, func() {
+		b.handleRenew(info)
+	})
+
+	// Store the info
+	b.bindLock.Lock()
+	b.binds[bindingID] = info
+	b.bindLock.Unlock()
 	return nil
 }
 
@@ -149,7 +187,23 @@ func (b *Broker) Stop() error {
 
 // handleRenew is used to handle renewing a token
 func (b *Broker) handleRenew(info *bindingInfo) {
-	// TODO
+	// Attempt to renew the token
+	auth := b.client.Auth().Token()
+	secret, err := auth.Renew(info.ClientToken, 0)
+	if err != nil {
+		b.log.Error("broker: token renew failed", err)
+	}
+
+	// Setup Renew timer
+	var renew time.Duration
+	if secret != nil {
+		renew = time.Duration(secret.Auth.LeaseDuration) / 2 * time.Second
+	} else {
+		renew = 30 * time.Second
+	}
+	info.timer = time.AfterFunc(renew, func() {
+		b.handleRenew(info)
+	})
 }
 
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
@@ -365,6 +419,10 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	if err != nil {
 		b.log.Error("broker: failed to read binding info", err)
 		return fmt.Errorf("failed to read binding info: %v", err)
+	}
+	if secret == nil {
+		b.log.Error("broker: missing binding info for unbind", err)
+		return fmt.Errorf("missing binding info")
 	}
 
 	// Decode the binding info
