@@ -3,16 +3,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/pkg/errors"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 
+	"github.com/fatih/structs"
 	uuid "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pivotal-cf/brokerapi"
 )
 
@@ -35,12 +37,25 @@ const (
 
 var _ brokerapi.ServiceBroker = (*Broker)(nil)
 
+type bindingInfo struct {
+	ClientToken   string
+	Accessor      string
+	LeaseDuration int
+	Renew         time.Time
+	Expires       time.Time
+}
+
 type Broker struct {
 	log    lager.Logger
 	client *api.Client
 
-	// mountMutex is the
+	// mountMutex is used to protect updates to the mount table
 	mountMutex sync.Mutex
+
+	// Binds is used to track all the bindings and perform
+	// their renewal at (Expiration/2) intervals.
+	binds    map[string]*time.Timer
+	bindLock sync.Mutex
 
 	shutdown     bool
 	shutdownCh   chan struct{}
@@ -57,6 +72,20 @@ func (b *Broker) Start() error {
 	if b.shutdownCh != nil {
 		return nil
 	}
+
+	// Ensure binds is initialized
+	b.binds = make(map[string]*time.Timer)
+
+	// Ensure the generic secret backend at cf/broker is mounted.
+	mounts := map[string]string{
+		"cf/broker": "generic",
+	}
+	if err := b.IdempotentMount(mounts); err != nil {
+		b.log.Error("broker: failed creating mounts", err)
+		return fmt.Errorf("failed to create broker state mount: %v", err)
+	}
+
+	// TODO: Restore timers
 
 	// Start the run loop
 	b.shutdown = false
@@ -92,6 +121,7 @@ func (b *Broker) run(stopCh chan struct{}, doneCh chan struct{}) {
 	defer close(doneCh)
 	for {
 		select {
+		// TODO: Renew periodically
 		case <-stopCh:
 			return
 		}
@@ -181,20 +211,16 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		"/cf/" + instanceID + "/transit":              "transit",
 	}
 
-	// TODO: Mount the backends
+	// Mount the backends
 	b.log.Info(fmt.Sprintf("broker: setting up mounts: %#v", mounts))
-	if mounts != nil {
-		b.log.Error("broker: failed to setup mounts", nil)
-		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to setup mounts: %v", nil)
+	if err := b.IdempotentMount(mounts); err != nil {
+		b.log.Error("broker: failed to setup mounts", err)
+		return brokerapi.ProvisionedServiceSpec{}, fmt.Errorf("failed to setup mounts: %v", err)
 	}
 
 	// Done
 	return brokerapi.ProvisionedServiceSpec{}, nil
 }
-
-/*
-Broker unmounts all backends under /cf/SvcID/ (BTV)
-*/
 
 // Deprovision is used to remove a tenant of Vault. We use this to
 // remove all the backends of the tenant, delete the token role, and policy.
@@ -203,7 +229,15 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 		"instance-id": instanceID,
 	})
 
-	// TODO: Unmount the backends
+	// Unmount the backends
+	mounts := []string{
+		"/cf/" + instanceID + "/secret",
+		"/cf/" + instanceID + "/transit",
+	}
+	if err := b.IdempotentUnmount(mounts); err != nil {
+		b.log.Error("broker: failed to remove mounts", err)
+		return brokerapi.DeprovisionServiceSpec{}, fmt.Errorf("failed to remove mounts: %v", err)
+	}
 
 	// Delete the token role
 	path := "/auth/token/roles/cf-" + instanceID
@@ -225,6 +259,8 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	return brokerapi.DeprovisionServiceSpec{}, nil
 }
 
+// Bind is used to attach a tenant of Vault to an application in CloudFoundry.
+// This should create a credential that is used to authorize against Vault.
 func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details brokerapi.BindDetails) (brokerapi.Binding, error) {
 	b.log.Debug("binding service", lager.Data{
 		"binding-id":  bindingID,
@@ -234,19 +270,17 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	binding := brokerapi.Binding{}
 	roleName := "cf-" + instanceID
 
-	// Create the secret
+	// Create the token
 	renewable := true
 	secret, err := b.client.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
-		Policies:       []string{},
-		Metadata:       map[string]string{},
-		TTL:            "",
-		ExplicitMaxTTL: "",
-		DisplayName:    "",
-		Renewable:      &renewable,
+		Policies:    []string{roleName},
+		Metadata:    map[string]string{"cf-instance-id": instanceID, "cf-binding-id": bindingID},
+		DisplayName: "cf-bind-" + bindingID,
+		Renewable:   &renewable,
 	}, roleName)
 	if err != nil {
-		b.log.Error("failed creating secret", err)
-		return binding, err
+		b.log.Error("broker: failed creating token", err)
+		return binding, fmt.Errorf("failed creating token: %v", err)
 	}
 	if secret.Auth == nil {
 		err = errors.New("secret as no auth")
@@ -254,42 +288,77 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		return binding, err
 	}
 
-	// Ensure the generic secret backend at cf/broker is mounted.
-	if err := b.IdempotentMount(map[string]string{
-		"cf/broker": "generic",
-	}); err != nil {
-		defer b.RevokeAccessor(secret.Auth.Accessor)
-		b.log.Error("failed creating mounts", err)
-		return binding, err
+	// Create a binding info object
+	now := time.Now().UTC()
+	expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
+	info := &bindingInfo{
+		ClientToken:   secret.Auth.ClientToken,
+		Accessor:      secret.Auth.Accessor,
+		LeaseDuration: secret.Auth.LeaseDuration,
+		Renew:         now,
+		Expires:       expires,
 	}
 
 	// Store the token and metadata in the generic secret backend
 	path := "cf/broker/" + instanceID + "/" + bindingID
-	if _, err := b.client.Logical().Write(path, map[string]interface{}{
-		"token":       nil,
-		"last_renew":  nil,
-		"expire_time": nil,
-	}); err != nil {
+	if _, err := b.client.Logical().Write(path, structs.Map(info)); err != nil {
 		defer b.RevokeAccessor(secret.Auth.Accessor)
 		b.log.Error("failed to commit to broker", err)
 		return binding, err
 	}
 
-	// Save the credentials
-	binding.Credentials = nil
+	// TODO: Setup Renew timer
 
+	// Save the credentials
+	binding.Credentials = map[string]string{
+		"vault_token_accessor": secret.Auth.Accessor,
+		"vault_token":          secret.Auth.ClientToken,
+		"vault_path":           "cf/" + instanceID,
+	}
 	return binding, nil
 }
 
+// Unbind is used to detach an applicaiton from a tenant in Vault.
 func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, details brokerapi.UnbindDetails) error {
 	b.log.Debug("unbinding service", lager.Data{
 		"binding-id":  bindingID,
 		"instance-id": instanceID,
 	})
 
+	// Read the binding info
+	path := "cf/broker/" + instanceID + "/" + bindingID
+	secret, err := b.client.Logical().Read(path)
+	if err != nil {
+		b.log.Error("broker: failed to read binding info", err)
+		return fmt.Errorf("failed to read binding info: %v", err)
+	}
+
+	// Decode the binding info
+	var info bindingInfo
+	if err := mapstructure.Decode(secret.Data, &info); err != nil {
+		b.log.Error("broker: failed to decode binding info", err)
+		return fmt.Errorf("failed to decode binding info: %v", err)
+	}
+
+	// Revoke the token
+	if err := b.RevokeAccessor(info.Accessor); err != nil {
+		b.log.Error("broker: failed to revoke accessor", err)
+		return fmt.Errorf("failed to revoke accessor: %v", err)
+	}
+
+	// Delete the binding info
+	if _, err := b.client.Logical().Delete(path); err != nil {
+		b.log.Error("broker: failed to delete binding info", err)
+		return fmt.Errorf("failed to delete binding info: %v", err)
+	}
+
+	// TODO: Stop the renew timer
+
+	// Done
 	return nil
 }
 
+// Not implemented, only used for multiple plans
 func (b *Broker) Update(ctx context.Context, instanceID string, details brokerapi.UpdateDetails, async bool) (brokerapi.UpdateServiceSpec, error) {
 	b.log.Debug("updating service", lager.Data{
 		"instance-id": instanceID,
@@ -297,19 +366,21 @@ func (b *Broker) Update(ctx context.Context, instanceID string, details brokerap
 	return brokerapi.UpdateServiceSpec{}, nil
 }
 
+// Not implemented, only used for async
 func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData string) (brokerapi.LastOperation, error) {
 	b.log.Debug("returning last operation", lager.Data{
 		"instance-id": instanceID,
 	})
-
 	return brokerapi.LastOperation{}, nil
 }
 
 // RevokeAccessor revokes the given token by accessor.
-func (b *Broker) RevokeAccessor(a string) {
+func (b *Broker) RevokeAccessor(a string) error {
 	if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
 		b.log.Error("failed revoking accessor", err)
+		return err
 	}
+	return nil
 }
 
 // IdempotentMount takes a list of mounts and their desired paths and mounts the
@@ -341,7 +412,6 @@ func (b *Broker) IdempotentMount(m map[string]string) error {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -371,6 +441,5 @@ func (b *Broker) IdempotentUnmount(l []string) error {
 			return err
 		}
 	}
-
 	return nil
 }
