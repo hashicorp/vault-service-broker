@@ -76,11 +76,11 @@ bootstrap:
 # deps gets all the dependencies for this repository and vendors them.
 deps:
 	@echo "==> Updating dependencies..."
-	@echo "--> Installing dependency manager..."
-	@go get -u github.com/kardianos/govendor
-	@govendor init
-	@echo "--> Installing all dependencies..."
-	@govendor fetch -v +outside
+	@docker run \
+		--rm \
+		--workdir="/go/src/${PROJECT}" \
+		--volume="${CURRENT_DIR}:/go/src/${PROJECT}" \
+		"golang:${GOVERSION}" /usr/bin/env sh -c "go get -u github.com/kardianos/govendor && govendor init && govendor fetch -v +outside"
 
 # dev builds the project for the current system as defined by go env.
 dev:
@@ -121,4 +121,3 @@ test-race:
 	@go test -timeout=60s -race ${GOFILES} ${TESTARGS}
 
 .PHONY: bin bin-local bootstrap deps dev dist test test-race
-
