@@ -87,6 +87,7 @@ func (b *Broker) Start() error {
 	}
 
 	// Restore timers
+	b.log.Info("broker: starting restore of binds")
 	instances, err := b.listDir("cf/broker/")
 	if err != nil {
 		b.log.Error("broker: failed to list instances", err)
@@ -106,6 +107,11 @@ func (b *Broker) Start() error {
 		}
 	}
 
+	// Log our restore status
+	b.bindLock.Lock()
+	b.log.Info(fmt.Sprintf("broker: restored %d binds from %d instances", len(b.binds), len(instances)))
+	b.bindLock.Unlock()
+
 	b.running = true
 	return nil
 }
@@ -116,8 +122,11 @@ func (b *Broker) listDir(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	keysRaw := secret.Data["keys"].([]string)
-	return keysRaw, nil
+	if secret != nil && len(secret.Data) > 0 {
+		keysRaw := secret.Data["keys"].([]string)
+		return keysRaw, nil
+	}
+	return nil, nil
 }
 
 // restoreBind is used to restore a binding

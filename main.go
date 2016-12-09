@@ -18,7 +18,7 @@ const (
 	DefaultLogLevel = "INFO"
 
 	// DefaultListenAddr is the default address unless we get
-	// an override via BROKER_LISTEN_ADDR
+	// an override via PORT
 	DefaultListenAddr = ":8000"
 )
 
