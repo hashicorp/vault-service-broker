@@ -38,6 +38,7 @@ const (
 var _ brokerapi.ServiceBroker = (*Broker)(nil)
 
 type bindingInfo struct {
+	Binding       string
 	ClientToken   string
 	Accessor      string
 	LeaseDuration int
@@ -59,19 +60,17 @@ type Broker struct {
 	binds    map[string]*bindingInfo
 	bindLock sync.Mutex
 
-	shutdown     bool
-	shutdownCh   chan struct{}
-	doneCh       chan struct{}
-	shutdownLock sync.Mutex
+	running bool
+	runLock sync.Mutex
 }
 
 // Start is used to start the broker
 func (b *Broker) Start() error {
-	b.shutdownLock.Lock()
-	defer b.shutdownLock.Unlock()
+	b.runLock.Lock()
+	defer b.runLock.Unlock()
 
 	// Do nothing if started
-	if b.shutdownCh != nil {
+	if b.running {
 		return nil
 	}
 
@@ -87,47 +86,65 @@ func (b *Broker) Start() error {
 		return fmt.Errorf("failed to create broker state mount: %v", err)
 	}
 
-	// TODO: Restore timers
+	// Restore timers
+	instances, err := b.listDir("cf/broker/")
+	if err != nil {
+		b.log.Error("broker: failed to list instances", err)
+		return fmt.Errorf("failed to list instances")
+	}
+	for _, inst := range instances {
+		binds, err := b.listDir("cf/broker/" + inst + "/")
+		if err != nil {
+			b.log.Error("broker: failed to list binds", err)
+			return fmt.Errorf("failed to list binds")
+		}
+		for _, bind := range binds {
+			if err := b.restoreBind(inst, bind); err != nil {
+				b.log.Error("broker: failed to restore bind", err)
+				return fmt.Errorf("failed to restore bind")
+			}
+		}
+	}
 
-	// Start the run loop
-	b.shutdown = false
-	b.shutdownCh = make(chan struct{})
-	b.doneCh = make(chan struct{})
-	go b.run(b.shutdownCh, b.doneCh)
+	b.running = true
+	return nil
+}
+
+// listDir is used to list a directory
+func (b *Broker) listDir(dir string) ([]string, error) {
+	secret, err := b.client.Logical().List("cf/broker/")
+	if err != nil {
+		return nil, err
+	}
+	keysRaw := secret.Data["keys"].([]string)
+	return keysRaw, nil
+}
+
+// restoreBind is used to restore a binding
+func (b *Broker) restoreBind(instanceID, bindID string) error {
+	// TODO
 	return nil
 }
 
 // Stop is used to shutdown the broker
 func (b *Broker) Stop() error {
-	b.shutdownLock.Lock()
-	defer b.shutdownLock.Unlock()
+	b.runLock.Lock()
+	defer b.runLock.Unlock()
 
 	// Do nothing if shutdown
-	if b.shutdown {
+	if !b.running {
 		return nil
 	}
 
-	// Signal shutdown and wait for exit
-	b.shutdown = true
-	close(b.shutdownCh)
-	<-b.doneCh
-
-	// Cleanup
-	b.shutdownCh = nil
-	b.doneCh = nil
-	return nil
-}
-
-// run is the long running broker routine
-func (b *Broker) run(stopCh chan struct{}, doneCh chan struct{}) {
-	defer close(doneCh)
-	for {
-		select {
-		// TODO: Renew periodically
-		case <-stopCh:
-			return
-		}
+	// Stop all the renew timers
+	b.bindLock.Lock()
+	for _, info := range b.binds {
+		info.timer.Stop()
 	}
+	b.bindLock.Unlock()
+
+	b.running = false
+	return nil
 }
 
 // handleRenew is used to handle renewing a token
@@ -299,6 +316,7 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	now := time.Now().UTC()
 	expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
 	info := &bindingInfo{
+		Binding:       bindingID,
 		ClientToken:   secret.Auth.ClientToken,
 		Accessor:      secret.Auth.Accessor,
 		LeaseDuration: secret.Auth.LeaseDuration,
