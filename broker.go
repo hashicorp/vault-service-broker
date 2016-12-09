@@ -43,6 +43,8 @@ type bindingInfo struct {
 	LeaseDuration int
 	Renew         time.Time
 	Expires       time.Time
+
+	timer *time.Timer
 }
 
 type Broker struct {
@@ -54,7 +56,7 @@ type Broker struct {
 
 	// Binds is used to track all the bindings and perform
 	// their renewal at (Expiration/2) intervals.
-	binds    map[string]*time.Timer
+	binds    map[string]*bindingInfo
 	bindLock sync.Mutex
 
 	shutdown     bool
@@ -74,7 +76,7 @@ func (b *Broker) Start() error {
 	}
 
 	// Ensure binds is initialized
-	b.binds = make(map[string]*time.Timer)
+	b.binds = make(map[string]*bindingInfo)
 
 	// Ensure the generic secret backend at cf/broker is mounted.
 	mounts := map[string]string{
@@ -126,6 +128,11 @@ func (b *Broker) run(stopCh chan struct{}, doneCh chan struct{}) {
 			return
 		}
 	}
+}
+
+// handleRenew is used to handle renewing a token
+func (b *Broker) handleRenew(info *bindingInfo) {
+	// TODO
 }
 
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
@@ -307,7 +314,16 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		return binding, err
 	}
 
-	// TODO: Setup Renew timer
+	// Setup Renew timer
+	renew := time.Duration(secret.Auth.LeaseDuration) / 2 * time.Second
+	info.timer = time.AfterFunc(renew, func() {
+		b.handleRenew(info)
+	})
+
+	// Store the info
+	b.bindLock.Lock()
+	b.binds[bindingID] = info
+	b.bindLock.Unlock()
 
 	// Save the credentials
 	binding.Credentials = map[string]string{
@@ -352,7 +368,14 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		return fmt.Errorf("failed to delete binding info: %v", err)
 	}
 
-	// TODO: Stop the renew timer
+	// Delete the bind if it exists, stop the renew timer
+	b.bindLock.Lock()
+	existing, ok := b.binds[bindingID]
+	if ok {
+		delete(b.binds, bindingID)
+		existing.timer.Stop()
+	}
+	b.bindLock.Unlock()
 
 	// Done
 	return nil
