@@ -248,3 +248,6 @@ local.properties
 
 # Code Recommenders
 .recommenders/
+
+# Binary
+cf-vault-broker
