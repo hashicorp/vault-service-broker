@@ -84,3 +84,27 @@ It currently recognizes the following:
 * `VAULT_TOKEN` - (No default) The Vault token to use for the broker. This must currently
   be a root level token.
 
+## Getting Started
+
+# Decide on the credentials to use for authenticating
+export USERNAME="vault"
+export PASSWORD="vault"
+
+# Push and start the broker service at vault-broker.SUFFIX
+cf push --no-start
+cf set-env vault-broker VAULT_ADDR "..."
+cf set-env vault-broker VAULT_TOKEN "..."
+cf set-env vault-broker SECURITY_USER_NAME "$USERNAME"
+cf set-env vault-broker SECURITY_USER_PASSWORD "$PASSWORD"
+cf start vault-broker
+
+# Create the service broker
+cf enable-service-access vault
+cf create-service-broker vault "$USERNAME" "$PASSWORD" http://vault-broker.local.pcfdev.io
+cf enable-service-access vault
+
+# Verify the service broker is running
+cf marketplace
+
+# Create the service instance
+cf create-service vault default vault

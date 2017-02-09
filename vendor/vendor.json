@@ -153,6 +153,12 @@
 			"revisionTime": "2016-10-28T10:26:57Z"
 		},
 		{
+			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
+			"path": "github.com/pkg/errors",
+			"revision": "248dadf4e9068a0b3e79f02ed0a610d935de5302",
+			"revisionTime": "2016-10-29T09:36:37Z"
+		},
+		{
 			"checksumSHA1": "Qm7DuiE3Cn0+CelfV9tggSPNG0k=",
 			"path": "github.com/sethgrid/pester",
 			"revision": "ab3a58f3fbc32058b25cf9e416272cf0097be523",

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/hashicorp/vault/api"
@@ -13,35 +13,30 @@ import (
 )
 
 const (
-	// DefaultLogLevel is the default log level unless we
-	// get an override via LOG_LEVEL
-	DefaultLogLevel = "INFO"
-
 	// DefaultListenAddr is the default address unless we get
 	// an override via PORT
 	DefaultListenAddr = ":8000"
 )
 
 func main() {
-	// Parse our log level
-	rawLog := DefaultLogLevel
-	if v := os.Getenv("LOG_LEVEL"); v != "" {
-		rawLog = v
-	}
-	logLevel, err := parseLogLevel(rawLog)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Setup the logger - intentionally do not log date or time because it will
+	// be prefixed in the log output by CF.
+	log := log.New(os.Stdout, "", 0)
 
-	// Setup the logger
-	log := lager.NewLogger("vault-broker")
-	log.RegisterSink(lager.NewWriterSink(os.Stderr, logLevel))
+	// Ensure username and password are present
+	username := os.Getenv("SECURITY_USER_NAME")
+	if username == "" {
+		log.Fatal("[ERR] missing SECURITY_USER_NAME")
+	}
+	password := os.Getenv("SECURITY_USER_PASSWORD")
+	if password == "" {
+		log.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
+	}
 
 	// Setup the vault client
 	client, err := api.NewClient(nil)
 	if err != nil {
-		log.Error("main: failed to setup Vault client", err)
-		os.Exit(1)
+		log.Fatal("[ERR] failed to create api client", err)
 	}
 
 	// Setup the broker
@@ -49,20 +44,18 @@ func main() {
 		log:    log,
 		client: client,
 	}
-	log.Info("main: starting broker")
 	if err := broker.Start(); err != nil {
-		log.Error("main: failed to start broker", err)
-		os.Exit(1)
+		log.Fatalf("[ERR] failed to start broker: %s", err)
 	}
 
 	// Parse the broker credentials
 	creds := brokerapi.BrokerCredentials{
-		Username: os.Getenv("SECURITY_USER_NAME"),
-		Password: os.Getenv("SECURITY_USER_PASSWORD"),
+		Username: username,
+		Password: password,
 	}
 
 	// Setup the HTTP handler
-	handler := brokerapi.New(broker, log, creds)
+	handler := brokerapi.New(broker, lager.NewLogger("vault-broker"), creds)
 
 	// Parse the listen address
 	addr := DefaultListenAddr
@@ -74,27 +67,27 @@ func main() {
 	}
 
 	// Listen to incoming connection
-	log.Info(fmt.Sprintf("main: starting http listener on %s", addr))
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Error("main: failed to start http listener", err)
-		os.Exit(1)
-	}
-	os.Exit(0)
-}
+	serverCh := make(chan struct{}, 1)
+	go func() {
+		log.Printf("[INFO] starting server on %s", addr)
+		if err := http.ListenAndServe(addr, handler); err != nil {
+			log.Fatalf("[ERR] server exited with: %s", err)
+		}
+		close(serverCh)
+	}()
 
-// parseLogLevel takes a string and returns an associated lager log level or
-// an error if one does not exist.
-func parseLogLevel(s string) (lager.LogLevel, error) {
-	switch strings.ToUpper(s) {
-	case "DEBUG":
-		return lager.DEBUG, nil
-	case "INFO":
-		return lager.INFO, nil
-	case "ERROR":
-		return lager.ERROR, nil
-	case "FATAL":
-		return lager.FATAL, nil
-	default:
-		return 0, fmt.Errorf("invalid log level %q", s)
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGINT)
+
+	select {
+	case <-serverCh:
+	case s := <-signalCh:
+		log.Printf("[INFO] received signal %s", s)
 	}
+
+	if err := broker.Stop(); err != nil {
+		log.Fatalf("[ERR] faild to stop broker: %s", err)
+	}
+
+	os.Exit(0)
 }
