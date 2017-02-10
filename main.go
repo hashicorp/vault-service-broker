@@ -16,6 +16,9 @@ const (
 	// DefaultListenAddr is the default address unless we get
 	// an override via PORT
 	DefaultListenAddr = ":8000"
+
+	// DefaultUUID is the default UUID of the services
+	DefaultUUID = "0654695e-0760-a1d4-1cad-5dd87b75ed99"
 )
 
 func main() {
@@ -32,6 +35,10 @@ func main() {
 	if password == "" {
 		log.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
 	}
+	guid := os.Getenv("BROKER_GUID")
+	if guid == "" {
+		guid = DefaultUUID
+	}
 
 	// Setup the vault client
 	client, err := api.NewClient(nil)
@@ -43,6 +50,7 @@ func main() {
 	broker := &Broker{
 		log:    log,
 		client: client,
+		guid:   guid,
 	}
 	if err := broker.Start(); err != nil {
 		log.Fatalf("[ERR] failed to start broker: %s", err)

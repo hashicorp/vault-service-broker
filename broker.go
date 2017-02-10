@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/fatih/structs"
-	uuid "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/api"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pivotal-cf/brokerapi"
@@ -50,6 +49,9 @@ type bindingInfo struct {
 type Broker struct {
 	log    *log.Logger
 	client *api.Client
+
+	// guid is the UUID of this broker.
+	guid string
 
 	// mountMutex is used to protect updates to the mount table
 	mountMutex sync.Mutex
@@ -202,14 +204,9 @@ func (b *Broker) Stop() error {
 
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	b.log.Printf("[INFO] listing services")
-
-	brokerID, err := uuid.GenerateUUID()
-	if err != nil {
-		b.log.Fatalf("[ERR] uuid generation failed: %s", err)
-	}
 	return []brokerapi.Service{
 		brokerapi.Service{
-			ID:            brokerID,
+			ID:            b.guid,
 			Name:          VaultBrokerName,
 			Description:   VaultBrokerDescription,
 			Tags:          []string{},
@@ -217,7 +214,7 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 			PlanUpdatable: false,
 			Plans: []brokerapi.ServicePlan{
 				brokerapi.ServicePlan{
-					ID:          fmt.Sprintf("%s.%s", brokerID, VaultPlanName),
+					ID:          fmt.Sprintf("%s.%s", b.guid, VaultPlanName),
 					Name:        VaultPlanName,
 					Description: VaultPlanDescription,
 					Free:        brokerapi.FreeValue(true),
