@@ -3,16 +3,16 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "PhP2xCRaBN8unPPq8ZpumXsbqEg=",
+			"checksumSHA1": "wCsiss685AkJbnF/E0PcP4o1vLQ=",
 			"path": "code.cloudfoundry.org/lager",
-			"revision": "6cfe365fb6bb84343f0034b4a53cd250d173b61f",
-			"revisionTime": "2016-11-21T18:12:03Z"
+			"revision": "e95b952e262dcdb521c8b029ba15853f59292726",
+			"revisionTime": "2017-02-06T19:16:45Z"
 		},
 		{
-			"checksumSHA1": "KCWVxG+J8SxHGlGiUghe0KBGsa8=",
+			"checksumSHA1": "40Ns85VYa4smQPcewZ7SOdfLnKU=",
 			"path": "github.com/fatih/structs",
-			"revision": "dc3312cb1a4513a366c4c9e622ad55c32df12ed3",
-			"revisionTime": "2016-08-07T23:55:29Z"
+			"revision": "a720dfa8df582c51dee1b36feabb906bde1588bd",
+			"revisionTime": "2017-01-03T08:10:50Z"
 		},
 		{
 			"checksumSHA1": "g/V4qrXjUGG9B+e3hB+4NAYJ5Gs=",
@@ -21,10 +21,10 @@
 			"revisionTime": "2016-08-17T18:46:32Z"
 		},
 		{
-			"checksumSHA1": "urMd7A9QPAJYY0GZJL9qBhlUmD8=",
+			"checksumSHA1": "F5dR3/i70EhSIMZfeIV+H8/PtvM=",
 			"path": "github.com/gorilla/mux",
-			"revision": "757bef944d0f21880861c2dd9c871ca543023cba",
-			"revisionTime": "2016-09-20T23:08:13Z"
+			"revision": "392c28fe23e1c45ddba891b0320b3b5df220beea",
+			"revisionTime": "2017-01-18T13:43:44Z"
 		},
 		{
 			"checksumSHA1": "cdOCt0Yb+hdErz8NAQqayxPmRsY=",
@@ -39,10 +39,10 @@
 			"revisionTime": "2016-04-07T17:41:26Z"
 		},
 		{
-			"checksumSHA1": "jplwF0kQyDhu2Wqq7cmZu0SHjOI=",
+			"checksumSHA1": "4fgV2vzKKVyIlQ9nMyXIP5muq9E=",
 			"path": "github.com/hashicorp/go-multierror",
-			"revision": "8484912a3b9987857bac52e0c5fec2b95f419628",
-			"revisionTime": "2016-11-06T17:22:40Z"
+			"revision": "ed905158d87462226a13fe39ddf685ea65f1c11f",
+			"revisionTime": "2016-12-16T18:43:04Z"
 		},
 		{
 			"checksumSHA1": "A1PcINvF3UiwHRKn8UcgARgvGRs=",
@@ -51,82 +51,76 @@
 			"revisionTime": "2016-05-03T14:34:40Z"
 		},
 		{
-			"checksumSHA1": "mAkPa/RLuIwN53GbwIEMATexams=",
-			"path": "github.com/hashicorp/go-uuid",
-			"revision": "64130c7a86d732268a38cb04cfbaf0cc987fda98",
-			"revisionTime": "2016-07-17T02:21:40Z"
-		},
-		{
 			"checksumSHA1": "Ok3Csn6Voou7pQT6Dv2mkwpqFtw=",
 			"path": "github.com/hashicorp/hcl",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "XQmjDva9JCGGkIecOgwtBEMCJhU=",
 			"path": "github.com/hashicorp/hcl/hcl/ast",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
-			"checksumSHA1": "vF6LLywGDoAaccTcAGrcY7mYvZc=",
+			"checksumSHA1": "MGYzZActhzSs9AnCx3wrEYVbKFg=",
 			"path": "github.com/hashicorp/hcl/hcl/parser",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "z6wdP4mRw4GVjShkNHDaOWkbxS0=",
 			"path": "github.com/hashicorp/hcl/hcl/scanner",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "oS3SCN9Wd6D8/LG0Yx1fu84a7gI=",
 			"path": "github.com/hashicorp/hcl/hcl/strconv",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "c6yprzj06ASwCo18TtbbNNBHljA=",
 			"path": "github.com/hashicorp/hcl/hcl/token",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "138aCV5n8n7tkGYMsMVQQnnLq+0=",
 			"path": "github.com/hashicorp/hcl/json/parser",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "YdvFsNOMSWMLnY6fcliWQa0O5Fw=",
 			"path": "github.com/hashicorp/hcl/json/scanner",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
 			"checksumSHA1": "fNlXQCQEnb+B3k5UDL/r15xtSJY=",
 			"path": "github.com/hashicorp/hcl/json/token",
-			"revision": "37ab263305aaeb501a60eb16863e808d426e37f2",
-			"revisionTime": "2016-12-01T14:17:04Z"
+			"revision": "372e8ddaa16fd67e371e9323807d056b799360af",
+			"revisionTime": "2017-02-02T00:05:34Z"
 		},
 		{
-			"checksumSHA1": "31yBeS6U3xm7VJ7ZvDxRgBxXP0A=",
+			"checksumSHA1": "l0levVQE5+zSaiOCPbU12rYgRyE=",
 			"path": "github.com/hashicorp/vault/api",
-			"revision": "5f39250f454d009097bfc912d0e06610e34fd36f",
-			"revisionTime": "2016-12-09T15:07:01Z"
+			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
+			"revisionTime": "2017-02-10T17:39:18Z"
 		},
 		{
 			"checksumSHA1": "ft77GtqeZEeCXioGpF/s6DlGm/U=",
 			"path": "github.com/hashicorp/vault/helper/compressutil",
-			"revision": "5f39250f454d009097bfc912d0e06610e34fd36f",
-			"revisionTime": "2016-12-09T15:07:01Z"
+			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
+			"revisionTime": "2017-02-10T17:39:18Z"
 		},
 		{
 			"checksumSHA1": "yUiSTPf0QUuL2r/81sjuytqBoeQ=",
 			"path": "github.com/hashicorp/vault/helper/jsonutil",
-			"revision": "5f39250f454d009097bfc912d0e06610e34fd36f",
-			"revisionTime": "2016-12-09T15:07:01Z"
+			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
+			"revisionTime": "2017-02-10T17:39:18Z"
 		},
 		{
 			"checksumSHA1": "V/quM7+em2ByJbWBLOsEwnY3j/Q=",
@@ -135,22 +129,22 @@
 			"revisionTime": "2016-12-03T19:45:07Z"
 		},
 		{
-			"checksumSHA1": "oouYEOJ4wFLlCWEgNy7/MWIzAfg=",
+			"checksumSHA1": "wTMmmuol+KHkz9EwVKaOjd2O4cs=",
 			"path": "github.com/mitchellh/mapstructure",
-			"revision": "5a0325d7fafaac12dda6e7fb8bd222ec1b69875e",
-			"revisionTime": "2016-12-04T05:35:18Z"
+			"revision": "db1efb556f84b25a0a13a04aad883943538ad2e0",
+			"revisionTime": "2017-01-25T05:19:37Z"
 		},
 		{
-			"checksumSHA1": "uaEySPa+GWg3aQ84OdLmniEa2sU=",
+			"checksumSHA1": "WWyOitMj5NlJNf3NmORs6+V96zs=",
 			"path": "github.com/pivotal-cf/brokerapi",
-			"revision": "3dcb3e88faf1f81359679aa1b931df45d30f01de",
-			"revisionTime": "2016-10-28T10:26:57Z"
+			"revision": "2888133b7e83b7972220c940651e145dd114734c",
+			"revisionTime": "2017-01-25T15:43:05Z"
 		},
 		{
 			"checksumSHA1": "4yHEcDRxN5sqr5UDFs3qr0B4lwA=",
 			"path": "github.com/pivotal-cf/brokerapi/auth",
-			"revision": "3dcb3e88faf1f81359679aa1b931df45d30f01de",
-			"revisionTime": "2016-10-28T10:26:57Z"
+			"revision": "2888133b7e83b7972220c940651e145dd114734c",
+			"revisionTime": "2017-01-25T15:43:05Z"
 		},
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
@@ -159,10 +153,10 @@
 			"revisionTime": "2016-10-29T09:36:37Z"
 		},
 		{
-			"checksumSHA1": "Qm7DuiE3Cn0+CelfV9tggSPNG0k=",
+			"checksumSHA1": "A8ptzv+SqJ1dAEwFZ2EDp+bwOeg=",
 			"path": "github.com/sethgrid/pester",
-			"revision": "ab3a58f3fbc32058b25cf9e416272cf0097be523",
-			"revisionTime": "2016-12-02T16:40:13Z"
+			"revision": "2c5fb962da6113d0968907fd81dba3ca35151d1c",
+			"revisionTime": "2016-12-29T17:44:48Z"
 		}
 	],
 	"rootPath": "github.com/hashicorp/cf-vault-broker"

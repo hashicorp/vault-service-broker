@@ -80,7 +80,7 @@ deps:
 		--rm \
 		--workdir="/go/src/${PROJECT}" \
 		--volume="${CURRENT_DIR}:/go/src/${PROJECT}" \
-		"golang:${GOVERSION}" /usr/bin/env sh -c "go get -u github.com/kardianos/govendor && govendor init && govendor fetch -v +outside"
+		"golang:${GOVERSION}" /usr/bin/env sh -c "go get -u github.com/kardianos/govendor && rm -rf vendor/ && govendor init && govendor fetch -v +outside"
 
 # dev builds the project for the current system as defined by go env.
 dev:
