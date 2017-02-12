@@ -33,10 +33,10 @@
 			"revisionTime": "2014-10-28T05:47:10Z"
 		},
 		{
-			"checksumSHA1": "Uzyon2091lmwacNsl1hCytjhHtg=",
+			"checksumSHA1": "b8F628srIitj5p7Y130xc9k0QWs=",
 			"path": "github.com/hashicorp/go-cleanhttp",
-			"revision": "ad28ea4487f05916463e2423a55166280e8254b5",
-			"revisionTime": "2016-04-07T17:41:26Z"
+			"revision": "3573b8b52aa7b37b9358d966a898feb387f62437",
+			"revisionTime": "2017-02-11T01:34:15Z"
 		},
 		{
 			"checksumSHA1": "4fgV2vzKKVyIlQ9nMyXIP5muq9E=",
@@ -107,20 +107,20 @@
 		{
 			"checksumSHA1": "l0levVQE5+zSaiOCPbU12rYgRyE=",
 			"path": "github.com/hashicorp/vault/api",
-			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
-			"revisionTime": "2017-02-10T17:39:18Z"
+			"revision": "5f6c4a9696c563135793d569c0e6b2aa23691556",
+			"revisionTime": "2017-02-11T00:57:53Z"
 		},
 		{
 			"checksumSHA1": "ft77GtqeZEeCXioGpF/s6DlGm/U=",
 			"path": "github.com/hashicorp/vault/helper/compressutil",
-			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
-			"revisionTime": "2017-02-10T17:39:18Z"
+			"revision": "5f6c4a9696c563135793d569c0e6b2aa23691556",
+			"revisionTime": "2017-02-11T00:57:53Z"
 		},
 		{
 			"checksumSHA1": "yUiSTPf0QUuL2r/81sjuytqBoeQ=",
 			"path": "github.com/hashicorp/vault/helper/jsonutil",
-			"revision": "1ecf8b140939f6fc3b495f09f683d32a1503d1db",
-			"revisionTime": "2017-02-10T17:39:18Z"
+			"revision": "5f6c4a9696c563135793d569c0e6b2aa23691556",
+			"revisionTime": "2017-02-11T00:57:53Z"
 		},
 		{
 			"checksumSHA1": "V/quM7+em2ByJbWBLOsEwnY3j/Q=",
