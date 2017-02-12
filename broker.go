@@ -3,31 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fatih/structs"
 	"github.com/hashicorp/vault/api"
-	"github.com/mitchellh/mapstructure"
 	"github.com/pivotal-cf/brokerapi"
 	"github.com/pkg/errors"
 )
 
 const (
-	// VaultBrokerName is the name we use for the broker
-	VaultBrokerName = "vault"
-
-	// VaultBrokerDescription is the description we use for the broker
-	VaultBrokerDescription = "HashiCorp Vault Service Broker"
-
 	// VaultPlanName is the name of our plan, only one supported
-	VaultPlanName = "default"
+	VaultPlanName = "shared"
 
-	// VaultPlanDescription is the description of the plan
-	VaultPlanDescription = "Secure access to a multi-tenant HashiCorp Vault cluster"
+	// VaultPlanDescription is the default description.
+	VaultPlanDescription = "Secure access to Vault's storage and transit backends"
 
 	// VaultPeriodicTTL is the token role periodic TTL.
 	VaultPeriodicTTL = 5 * 86400
@@ -36,6 +29,8 @@ const (
 var _ brokerapi.ServiceBroker = (*Broker)(nil)
 
 type bindingInfo struct {
+	Organization  string
+	Space         string
 	Binding       string
 	ClientToken   string
 	Accessor      string
@@ -46,12 +41,27 @@ type bindingInfo struct {
 	timer *time.Timer
 }
 
+type instanceInfo struct {
+	OrganizationGUID string
+	SpaceGUID        string
+}
+
 type Broker struct {
 	log    *log.Logger
 	client *api.Client
 
-	// guid is the UUID of this broker.
-	guid string
+	// service-specific customization
+	serviceID          string
+	serviceName        string
+	serviceDescription string
+	serviceTags        []string
+
+	// vaultAdvertiseAddr is the address where Vault should be advertised to
+	// clients.
+	vaultAdvertiseAddr string
+
+	// vaultRenewToken toggles whether the broker should renew the supplied token.
+	vaultRenewToken bool
 
 	// mountMutex is used to protect updates to the mount table
 	mountMutex sync.Mutex
@@ -61,8 +71,14 @@ type Broker struct {
 	binds    map[string]*bindingInfo
 	bindLock sync.Mutex
 
+	// instances is used to map instances to their space and org GUID.
+	instances     map[string]*instanceInfo
+	instancesLock sync.Mutex
+
 	running bool
 	runLock sync.Mutex
+
+	stopCh chan struct{}
 }
 
 // Start is used to start the broker
@@ -78,8 +94,23 @@ func (b *Broker) Start() error {
 		return nil
 	}
 
+	// Create the stop channel
+	b.stopCh = make(chan struct{}, 1)
+
+	// Start background renewal
+	if b.vaultRenewToken {
+		go b.renewVaultToken()
+	}
+
 	// Ensure binds is initialized
-	b.binds = make(map[string]*bindingInfo)
+	if b.binds == nil {
+		b.binds = make(map[string]*bindingInfo)
+	}
+
+	// Ensure instances is initialized
+	if b.instances == nil {
+		b.instances = make(map[string]*instanceInfo)
+	}
 
 	// Ensure the generic secret backend at cf/broker is mounted.
 	mounts := map[string]string{
@@ -97,11 +128,19 @@ func (b *Broker) Start() error {
 		return errors.Wrap(err, "failed to list instances")
 	}
 	for _, inst := range instances {
+		inst = strings.Trim(inst, "/")
+
+		if err := b.restoreInstance(inst); err != nil {
+			return errors.Wrapf(err, "failed to restore instance data for %q", inst)
+		}
+
 		binds, err := b.listDir("cf/broker/" + inst + "/")
 		if err != nil {
 			return errors.Wrapf(err, "failed to list binds for instance %q", inst)
 		}
+
 		for _, bind := range binds {
+			bind = strings.Trim(bind, "/")
 			if err := b.restoreBind(inst, bind); err != nil {
 				return errors.Wrapf(err, "failed to restore bind %q", bind)
 			}
@@ -118,6 +157,36 @@ func (b *Broker) Start() error {
 	return nil
 }
 
+// restoreInstance restores the data for the instance by the given ID.
+func (b *Broker) restoreInstance(instanceID string) error {
+	b.log.Printf("[INFO] restoring info for instance %s", instanceID)
+
+	path := "cf/broker/" + instanceID
+
+	secret, err := b.client.Logical().Read(path)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read instance info at %q", path)
+	}
+	if secret == nil || len(secret.Data) == 0 {
+		b.log.Printf("[INFO] restoreInstance %s has no secret data", path)
+		return nil
+	}
+
+	// Decode the binding info
+	b.log.Printf("[DEBUG] decoding bind data from %s", path)
+	info, err := decodeInstanceInfo(secret.Data)
+	if err != nil {
+		return errors.Wrapf(err, "failed to decode instance info for %s", path)
+	}
+
+	// Store the info
+	b.instancesLock.Lock()
+	b.instances[instanceID] = info
+	b.instancesLock.Unlock()
+
+	return nil
+}
+
 // listDir is used to list a directory
 func (b *Broker) listDir(dir string) ([]string, error) {
 	b.log.Printf("[DEBUG] listing directory %q", dir)
@@ -125,11 +194,25 @@ func (b *Broker) listDir(dir string) ([]string, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "listDir %s", dir)
 	}
-	if secret != nil && len(secret.Data) > 0 {
-		keysRaw := secret.Data["keys"].([]string)
-		return keysRaw, fmt.Errorf("listDir %s has no secret", dir)
+	if secret == nil || len(secret.Data) == 0 {
+		b.log.Printf("[INFO] listDir %s has no secret data", dir)
+		return nil, nil
 	}
-	return nil, nil
+
+	keysRaw, ok := secret.Data["keys"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("listDir %s keys are not []interface{}", dir)
+	}
+	keys := make([]string, len(keysRaw))
+	for i, v := range keysRaw {
+		typed, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("listDir %s key %q is not string", dir, v)
+		}
+		keys[i] = typed
+	}
+
+	return keys, nil
 }
 
 // restoreBind is used to restore a binding
@@ -144,15 +227,16 @@ func (b *Broker) restoreBind(instanceID, bindingID string) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to read bind info at %q", path)
 	}
-	if secret == nil {
+	if secret == nil || len(secret.Data) == 0 {
+		b.log.Printf("[INFO] restoreBind %s has no secret data", path)
 		return nil
 	}
 
 	// Decode the binding info
-	info := new(bindingInfo)
 	b.log.Printf("[DEBUG] decoding bind data from %s", path)
-	if err := mapstructure.Decode(secret.Data, info); err != nil {
-		return errors.Wrap(err, "failed to decode binding info")
+	info, err := decodeBindingInfo(secret.Data)
+	if err != nil {
+		return errors.Wrapf(err, "failed to decode binding info for %s", path)
 	}
 
 	// Determine when we should renew
@@ -206,15 +290,15 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	b.log.Printf("[INFO] listing services")
 	return []brokerapi.Service{
 		brokerapi.Service{
-			ID:            b.guid,
-			Name:          VaultBrokerName,
-			Description:   VaultBrokerDescription,
-			Tags:          []string{},
+			ID:            b.serviceID,
+			Name:          b.serviceName,
+			Description:   b.serviceDescription,
+			Tags:          b.serviceTags,
 			Bindable:      true,
 			PlanUpdatable: false,
 			Plans: []brokerapi.ServicePlan{
 				brokerapi.ServicePlan{
-					ID:          fmt.Sprintf("%s.%s", b.guid, VaultPlanName),
+					ID:          fmt.Sprintf("%s.%s", b.serviceID, VaultPlanName),
 					Name:        VaultPlanName,
 					Description: VaultPlanDescription,
 					Free:        brokerapi.FreeValue(true),
@@ -286,6 +370,33 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		return brokerapi.ProvisionedServiceSpec{}, err
 	}
 
+	// Generate instance info
+	info := &instanceInfo{
+		OrganizationGUID: details.OrganizationGUID,
+		SpaceGUID:        details.SpaceGUID,
+	}
+	payload, err := json.Marshal(info)
+	if err != nil {
+		err = errors.Wrap(err, "failed to encode instance json")
+		return brokerapi.ProvisionedServiceSpec{}, err
+	}
+
+	// Store the token and metadata in the generic secret backend
+	instancePath := "cf/broker/" + instanceID
+	b.log.Printf("[DEBUG] storing instance metadata at %s", instancePath)
+	if _, err := b.client.Logical().Write(instancePath, map[string]interface{}{
+		"json": string(payload),
+	}); err != nil {
+		err = errors.Wrapf(err, "failed to commit instance %s", instancePath)
+		return brokerapi.ProvisionedServiceSpec{}, err
+	}
+
+	// Save the instance
+	b.log.Printf("[DEBUG] saving instance %s to cache", instanceID)
+	b.instancesLock.Lock()
+	b.instances[instanceID] = info
+	b.instancesLock.Unlock()
+
 	// Done
 	return brokerapi.ProvisionedServiceSpec{}, nil
 }
@@ -322,6 +433,20 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 		return brokerapi.DeprovisionServiceSpec{}, err
 	}
 
+	// Delete the instance info
+	instancePath := "cf/broker/" + instanceID
+	b.log.Printf("[DEBUG] deleting instance info at %s", instancePath)
+	if _, err := b.client.Logical().Delete(instancePath); err != nil {
+		err = errors.Wrapf(err, "failed to delete instance info at %s", instancePath)
+		return brokerapi.DeprovisionServiceSpec{}, err
+	}
+
+	// Delete the instance from the map
+	b.log.Printf("[DEBUG] removing instance %s from cache", instanceID)
+	b.instancesLock.Lock()
+	delete(b.instances, instanceID)
+	b.instancesLock.Unlock()
+
 	// Done!
 	return brokerapi.DeprovisionServiceSpec{}, nil
 }
@@ -353,10 +478,21 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		return binding, err
 	}
 
+	// Get the instance for this instanceID
+	b.log.Printf("[DEBUG] looking up instance %s from cache", instanceID)
+	b.instancesLock.Lock()
+	instance, ok := b.instances[instanceID]
+	b.instancesLock.Unlock()
+	if !ok {
+		return binding, fmt.Errorf("no instance exists with ID %s", instanceID)
+	}
+
 	// Create a binding info object
 	now := time.Now().UTC()
 	expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
 	info := &bindingInfo{
+		Organization:  instance.OrganizationGUID,
+		Space:         instance.SpaceGUID,
 		Binding:       bindingID,
 		ClientToken:   secret.Auth.ClientToken,
 		Accessor:      secret.Auth.Accessor,
@@ -364,16 +500,22 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		Renew:         now,
 		Expires:       expires,
 	}
+	data, err := json.Marshal(info)
+	if err != nil {
+		return binding, errors.Wrap(err, "failed to encode binding json")
+	}
 
 	// Store the token and metadata in the generic secret backend
 	path := "cf/broker/" + instanceID + "/" + bindingID
-	b.log.Printf("[DEBUG] storing metadata at %s", path)
-	if _, err := b.client.Logical().Write(path, structs.Map(info)); err != nil {
+	b.log.Printf("[DEBUG] storing binding metadata at %s", path)
+	if _, err := b.client.Logical().Write(path, map[string]interface{}{
+		"json": string(data),
+	}); err != nil {
 		a := secret.Auth.Accessor
 		if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
 			b.log.Printf("[WARN] failed to revoke accessor %s", a)
 		}
-		return binding, errors.Wrapf(err, "failed to commit to broken for %s", path)
+		return binding, errors.Wrapf(err, "failed to commit binding %s", path)
 	}
 
 	// Setup Renew timer
@@ -383,15 +525,26 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	})
 
 	// Store the info
+	b.log.Printf("[DEBUG] saving bind %s to cache", bindingID)
 	b.bindLock.Lock()
 	b.binds[bindingID] = info
 	b.bindLock.Unlock()
 
 	// Save the credentials
-	binding.Credentials = map[string]string{
-		"vault_token_accessor": secret.Auth.Accessor,
-		"vault_token":          secret.Auth.ClientToken,
-		"vault_path":           "cf/" + instanceID,
+	binding.Credentials = map[string]interface{}{
+		"address": b.vaultAdvertiseAddr,
+		"auth": map[string]interface{}{
+			"accessor": secret.Auth.Accessor,
+			"token":    secret.Auth.ClientToken,
+		},
+		"backends": map[string]interface{}{
+			"generic": "cf/" + instanceID + "/secret",
+			"transit": "cf/" + instanceID + "/transit",
+		},
+		"backends_shared": map[string]interface{}{
+			"organization": "cf/" + instance.OrganizationGUID + "/secret",
+			"space":        "cf/" + instance.SpaceGUID + "/secret",
+		},
 	}
 	return binding, nil
 }
@@ -408,14 +561,14 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	if err != nil {
 		return errors.Wrapf(err, "failed to read binding info for %s", path)
 	}
-	if secret == nil {
+	if secret == nil || len(secret.Data) == 0 {
 		return fmt.Errorf("missing bind info for unbind for %s", path)
 	}
 
 	// Decode the binding info
-	var info bindingInfo
 	b.log.Printf("[DEBUG] decoding binding info for %s", path)
-	if err := mapstructure.Decode(secret.Data, &info); err != nil {
+	info, err := decodeBindingInfo(secret.Data)
+	if err != nil {
 		return errors.Wrapf(err, "failed to decode binding info for %s", path)
 	}
 
@@ -433,6 +586,7 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	}
 
 	// Delete the bind if it exists, stop the renew timer
+	b.log.Printf("[DEBUG] removing binding %s from cache", bindingID)
 	b.bindLock.Lock()
 	existing, ok := b.binds[bindingID]
 	if ok {
@@ -520,7 +674,7 @@ func (b *Broker) idempotentUnmount(l []string) error {
 
 // handleRenew is used to handle renewing a token
 func (b *Broker) handleRenew(info *bindingInfo) {
-	b.log.Printf("[DEBUG] renewing token")
+	b.log.Printf("[DEBUG] renewing token with accessor %s", info.Accessor)
 
 	// Attempt to renew the token
 	auth := b.client.Auth().Token()
@@ -539,4 +693,100 @@ func (b *Broker) handleRenew(info *bindingInfo) {
 	info.timer = time.AfterFunc(renew, func() {
 		b.handleRenew(info)
 	})
+}
+
+// renewVaultToken infinitely renews the brokers Vault token until stopped. This
+// is designed to run as a background goroutine.
+func (b *Broker) renewVaultToken() {
+	for {
+		secret, err := b.client.Auth().Token().LookupSelf()
+		if err != nil {
+			b.log.Printf("[ERR] renew-token: error renewing vault token: %s", err)
+		}
+		if secret == nil || len(secret.Data) == 0 {
+			b.log.Printf("[ERR] renew-token: secret has no data: %s", err)
+		}
+
+		var dur time.Duration
+		if secret.LeaseDuration > 0 {
+			dur = time.Duration(secret.LeaseDuration) * time.Second
+		} else {
+			// Probably periodic
+			ttl, ok := secret.Data["ttl"]
+			if ok {
+				switch ttl.(type) {
+				case int, int64:
+					dur = time.Duration(ttl.(int64)) * time.Second
+				case string:
+					dur, _ = time.ParseDuration(ttl.(string) + "s")
+				case json.Number:
+					dur, _ = time.ParseDuration(string(ttl.(json.Number)) + "s")
+				}
+			}
+		}
+
+		// Cut in half for safety buffer on renewal
+		dur = dur / 2.0
+
+		// Make sure we have a sane duration. We might not have a duration if Vault
+		// is down or if some of the parsing above went awry.
+		if dur == 0 {
+			dur = 5 * time.Minute
+		}
+
+		// If we have a short duration, set it back to a second to prevent a
+		// hot-loop from occurring.
+		if dur < 1*time.Second {
+			b.log.Printf("[WARN] dur %s is less than 1s, resetting", dur)
+			dur = 1 * time.Second
+		}
+
+		b.log.Printf("[INFO] sleeping for %s", dur)
+
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(dur):
+			b.log.Printf("[INFO] renewing vault token")
+			if _, err := b.client.Auth().Token().RenewSelf(0); err != nil {
+				b.log.Printf("[WARN] failed to renew token: %s", err)
+			}
+		}
+	}
+}
+
+func decodeBindingInfo(m map[string]interface{}) (*bindingInfo, error) {
+	data, ok := m["json"]
+	if !ok {
+		return nil, fmt.Errorf("missing 'json' key")
+	}
+
+	typed, ok := data.(string)
+	if !ok {
+		return nil, fmt.Errorf("json data is %T, not string", data)
+	}
+
+	var info bindingInfo
+	if err := json.Unmarshal([]byte(typed), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func decodeInstanceInfo(m map[string]interface{}) (*instanceInfo, error) {
+	data, ok := m["json"]
+	if !ok {
+		return nil, fmt.Errorf("missing 'json' key")
+	}
+
+	typed, ok := data.(string)
+	if !ok {
+		return nil, fmt.Errorf("json data is %T, not string", data)
+	}
+
+	var info instanceInfo
+	if err := json.Unmarshal([]byte(typed), &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
 }
