@@ -423,6 +423,13 @@ $ vault read -field=rules sys/policy/cf-<instance_id>
 
 Append any additional rules to the end.
 
+## Contributing
+
+1. Clone the repo
+1. Make changes on a branch
+1. Test changes
+1. Submit a Pull Request to GitHub
+
 [nomad]: https://www.nomadproject.io/ "Nomad by HashiCorp"
 [vault]: https://www.vaultproject.io/ "Vault by HashiCorp"
 [vault-periodic-token]: https://www.vaultproject.io/docs/concepts/tokens.html#token-time-to-live-periodic-tokens-and-explicit-max-ttls "Vault Periodic Tokens"
