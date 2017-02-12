@@ -186,19 +186,19 @@ The response will look like:
 
 ```javascript
 {
- "address": "https://vault.company.internal:8200/",
- "auth": {
-  "accessor": "b1074bb8-4d15-36cf-54dd-2716fb8ac91d",
-  "token": "dff95895-6a03-0b29-6458-dc8602dc9df8"
- },
- "backends": {
-  "generic": "cf/203f2469-04e4-47b8-bc17-f3af56df8019/secret",
-  "transit": "cf/203f2469-04e4-47b8-bc17-f3af56df8019/transit"
- },
- "backends_shared": {
-  "organization": "cf/3c88c61e-875b-4530-b269-970f926340c4/secret",
-  "space": "cf/0348d384-f7d4-462b-9bd9-5a4c05b21b6c/secret"
- }
+  "address":"https://vault.company.internal:8200/",
+  "auth":{
+    "accessor":"b1074bb8-4d15-36cf-54dd-2716fb8ac91d",
+    "token":"dff95895-6a03-0b29-6458-dc8602dc9df8"
+  },
+  "backends":{
+    "generic":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/secret",
+    "transit":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/transit"
+  },
+  "backends_shared":{
+    "organization":"cf/3c88c61e-875b-4530-b269-970f926340c4/secret",
+    "space":"cf/0348d384-f7d4-462b-9bd9-5a4c05b21b6c/secret"
+  }
 }
 ```
 
@@ -405,26 +405,7 @@ currently recognizes the following.
 
 - `SECURITY_USER_PASSWORD` - (default: none) password for basic auth
 
-
-
-[nomad]: https://www.nomadproject.io/ "Nomad by HashiCorp"
-[vault]: https://www.vaultproject.io/ "Vault by HashiCorp"
-[vault-periodic-token]: https://www.vaultproject.io/docs/concepts/tokens.html#token-time-to-live-periodic-tokens-and-explicit-max-ttls "Vault Periodic Tokens"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Granting access to other paths
+### Granting Access to Other Paths
 
 The service broker has an opinionated setup of policies and mounts to provide a
 simplified user experience for getting started which matches the organizational
@@ -432,19 +413,16 @@ model of CloudFoundry. However an application may require access to existing
 data or backends.
 
 Once the broker creates the policy for a service id `cf-<instance_id>` that
-policy can simply be modified to add additional capabilities. The default
-policy, along with additional capabilities would be like:
+policy may be modified by a user with permissions in Vault to add additional
+capabilities. The default policy can be discovered by reading it:
 
-```hcl
-# Auto-generated rules
-path "cf/<instance_id>" { capabilities = ["list"] }
-path "cf/<instance_id>/*" { policy = "write" }
-path "cf/<space_id>" { capabilities = ["list"] }
-path "cf/<space_id>/*" { policy = "write" }
-path "cf/<org_id>" { capabilities = ["list"] }
-path "cf/<org_id>/*" { policy = "read" }
-
-# Additional rules to use the existing transit key foo
-path "transit/encrypt/foo" { policy = "write" }
-path "transit/decrypt/foo" { policy = "write" }
+```sh
+$ vault read -field=rules sys/policy/cf-<instance_id>
+# ...
 ```
+
+Append any additional rules to the end.
+
+[nomad]: https://www.nomadproject.io/ "Nomad by HashiCorp"
+[vault]: https://www.vaultproject.io/ "Vault by HashiCorp"
+[vault-periodic-token]: https://www.vaultproject.io/docs/concepts/tokens.html#token-time-to-live-periodic-tokens-and-explicit-max-ttls "Vault Periodic Tokens"
