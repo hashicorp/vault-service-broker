@@ -135,16 +135,16 @@
 			"revisionTime": "2017-01-25T05:19:37Z"
 		},
 		{
-			"checksumSHA1": "WWyOitMj5NlJNf3NmORs6+V96zs=",
+			"checksumSHA1": "77CFiZOBYxPgRiUNN0cr2O1KpVA=",
 			"path": "github.com/pivotal-cf/brokerapi",
-			"revision": "2888133b7e83b7972220c940651e145dd114734c",
-			"revisionTime": "2017-01-25T15:43:05Z"
+			"revision": "3ece34833940f3e0fc884ed73e35216907499529",
+			"revisionTime": "2017-02-13T08:23:38Z"
 		},
 		{
 			"checksumSHA1": "4yHEcDRxN5sqr5UDFs3qr0B4lwA=",
 			"path": "github.com/pivotal-cf/brokerapi/auth",
-			"revision": "2888133b7e83b7972220c940651e145dd114734c",
-			"revisionTime": "2017-01-25T15:43:05Z"
+			"revision": "3ece34833940f3e0fc884ed73e35216907499529",
+			"revisionTime": "2017-02-13T08:23:38Z"
 		},
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
