@@ -152,6 +152,12 @@ Next, register the broker in this space:
 $ cf create-service-broker vault-broker vault vault "https://${BROKER_URL}" --space-scoped
 ```
 
+Note: This will allow developers in the current space to access the broker. If
+other developers in another space want to access it, they will need to create
+their own instance. This is a good starting workflow, but more complex setups
+should investigate [allowing access to plans globally or
+per-organization][cf-service-acls].
+
 To verify the command worked, query the marketplace. You should see the broker
 in addition to the built-ins:
 
@@ -170,19 +176,14 @@ service instance and bind to it.
 $ cf create-service vault default my-vault
 ```
 
-Next, create a service key:
+Next, bind to the instance to the broker service:
 
 ```shell
-$ cf create-service-key my-vault my-key
+$ cf bind-service my-vault my-service
 ```
 
-And finally retrieve credentials for this instance:
-
-```shell
-$ cf service-key my-vault my-key
-```
-
-The response will look like:
+This will populate the environment variable `VCAP_SERVICES` inside the
+"my-service" service instance with a JSON payload:
 
 ```javascript
 {
@@ -430,6 +431,7 @@ Append any additional rules to the end.
 1. Test changes
 1. Submit a Pull Request to GitHub
 
+[cf-service-acls]: https://docs.cloudfoundry.org/services/access-control.html "Cloud Foundry Service ACLs"
 [nomad]: https://www.nomadproject.io/ "Nomad by HashiCorp"
 [vault]: https://www.vaultproject.io/ "Vault by HashiCorp"
 [vault-periodic-token]: https://www.vaultproject.io/docs/concepts/tokens.html#token-time-to-live-periodic-tokens-and-explicit-max-ttls "Vault Periodic Tokens"
