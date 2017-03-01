@@ -20,6 +20,22 @@ type ServiceBroker interface {
 	LastOperation(context context.Context, instanceID, operationData string) (LastOperation, error)
 }
 
+type DetailsWithRawParameters interface {
+	GetRawParameters() json.RawMessage
+}
+
+func (d ProvisionDetails) GetRawParameters() json.RawMessage {
+	return d.RawParameters
+}
+
+func (d BindDetails) GetRawParameters() json.RawMessage {
+	return d.RawParameters
+}
+
+func (d UpdateDetails) GetRawParameters() json.RawMessage {
+	return d.RawParameters
+}
+
 type ProvisionDetails struct {
 	ServiceID        string          `json:"service_id"`
 	PlanID           string          `json:"plan_id"`
@@ -119,6 +135,7 @@ var (
 	ErrInstanceDoesNotExist   = errors.New("instance does not exist")
 	ErrInstanceLimitMet       = errors.New("instance limit for this service has been reached")
 	ErrPlanQuotaExceeded      = errors.New("The quota for this service plan has been exceeded. Please contact your Operator for help.")
+	ErrServiceQuotaExceeded   = errors.New("The quota for this service has been exceeded. Please contact your Operator for help.")
 	ErrBindingAlreadyExists   = errors.New("binding already exists")
 	ErrBindingDoesNotExist    = errors.New("binding does not exist")
 	ErrAsyncRequired          = errors.New("This service plan requires client support for asynchronous service operations.")
