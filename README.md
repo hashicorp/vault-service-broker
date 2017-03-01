@@ -158,8 +158,8 @@ their own instance. This is a good starting workflow, but more complex setups
 should investigate [allowing access to plans globally or
 per-organization][cf-service-acls].
 
-To verify the command worked, query the marketplace. You should see the broker
-in addition to the built-ins:
+To verify the command worked, query the marketplace. You should see the Vault broker
+with a plan of 'default' in addition to any other services you may have access to:
 
 ```shell
 $ cf marketplace
@@ -167,43 +167,67 @@ $ cf marketplace
 vault          default           HashiCorp Vault Service Broker
 ```
 
-### Generate Credentials through the Vault Broker
+### Create a service instance and bind an app
 
 After registering the service in the marketplace, it is now possible to create a
 service instance and bind to it.
+
+First, create a service instance using the default plan.  For this example we will
+name the service instance 'my-vault':
 
 ```shell
 $ cf create-service vault default my-vault
 ```
 
-Next, bind to the instance to the broker service:
+With a service instance in place, you are ready to bind an app.
+Suppose we have an app called 'my-app'.
 
 ```shell
-$ cf bind-service my-vault my-service
+$ cf bind-service my-app my-vault
 ```
 
-This will populate the environment variable `VCAP_SERVICES` inside the
-"my-service" service instance with a JSON payload:
+You will need to restage the app to pick up the environment changes.
+
+```shell
+$ cf restage my-app
+```
+
+When the app starts back up, its `VCAP_SERVICES` environment variable
+will contain an entry for the my-vault service.  You can confirm this
+by checking the app's environment variables:
+
+```shell
+$ cf env my-app
+```
+
+The `VCAP_SERVICES` environment variable will have a section similar to
+the following:
 
 ```javascript
-{
-  "address":"https://vault.company.internal:8200/",
-  "auth":{
-    "accessor":"b1074bb8-4d15-36cf-54dd-2716fb8ac91d",
-    "token":"dff95895-6a03-0b29-6458-dc8602dc9df8"
-  },
-  "backends":{
-    "generic":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/secret",
-    "transit":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/transit"
-  },
-  "backends_shared":{
-    "organization":"cf/3c88c61e-875b-4530-b269-970f926340c4/secret",
-    "space":"cf/0348d384-f7d4-462b-9bd9-5a4c05b21b6c/secret"
+"vault": [
+  {
+    "name": "my-vault",
+    "plan": "default",
+    "credentials": {
+      "address":"https://vault.company.internal:8200/",
+      "auth":{
+        "accessor":"b1074bb8-4d15-36cf-54dd-2716fb8ac91d",
+        "token":"dff95895-6a03-0b29-6458-dc8602dc9df8"
+      },
+      "backends":{
+        "generic":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/secret",
+        "transit":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/transit"
+      },
+      "backends_shared":{
+        "organization":"cf/3c88c61e-875b-4530-b269-970f926340c4/secret",
+        "space":"cf/0348d384-f7d4-462b-9bd9-5a4c05b21b6c/secret"
+      }
+    }
   }
-}
+]
 ```
 
-The keys are as follows:
+The keys of the `credentials` section are as follows:
 
 - `address` - address to the Vault server to make requests against
 
