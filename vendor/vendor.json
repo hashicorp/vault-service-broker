@@ -183,5 +183,5 @@
 			"revisionTime": "2017-02-18T20:36:51Z"
 		}
 	],
-	"rootPath": "github.com/hashicorp/cf-vault-broker"
+	"rootPath": "github.com/hashicorp/cf-vault-service-broker"
 }
