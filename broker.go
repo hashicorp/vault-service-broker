@@ -676,19 +676,33 @@ func (b *Broker) idempotentUnmount(l []string) error {
 func (b *Broker) handleRenew(info *bindingInfo) {
 	b.log.Printf("[DEBUG] renewing token with accessor %s", info.Accessor)
 
+	// If we are past the expiration time, no need to renew anymore
+	if time.Now().UTC().After(info.Expires) {
+		b.log.Printf("[WARN] aborting renewing expired token with accessor %s", info.Accessor)
+		return
+	}
+
 	// Attempt to renew the token
 	auth := b.client.Auth().Token()
 	secret, err := auth.Renew(info.ClientToken, 0)
 	if err != nil {
-		b.log.Fatalf("[ERR] token renewal failed: %s", err)
+		b.log.Printf("[ERR] token renewal failed for accessor %s: %s",
+			info.Accessor, err)
 	}
 
 	// Setup Renew timer
 	var renew time.Duration
-	if secret != nil {
+	if secret != nil && secret.Auth != nil {
+		// TODO(armon): Should we update and persist the binding info?
+		//now := time.Now().UTC()
+		//expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
+		//info.LeaseDuration = secret.Auth.LeaseDuration
+		//info.Renew = now
+		//info.Expires = expires
+
 		renew = time.Duration(secret.Auth.LeaseDuration) / 2 * time.Second
 	} else {
-		renew = 30 * time.Second
+		renew = 60 * time.Second
 	}
 	info.timer = time.AfterFunc(renew, func() {
 		b.handleRenew(info)
