@@ -682,9 +682,17 @@ func (b *Broker) handleRenew(info *bindingInfo) {
 		return
 	}
 
-	// Attempt to renew the token
-	auth := b.client.Auth().Token()
-	secret, err := auth.Renew(info.ClientToken, 0)
+	// Attempt to renew the token; we first create a new client because we want
+	// to use RenewSelf and that requires setting the client token
+	client, err := api.NewClient(nil)
+	if err != nil {
+		b.log.Printf("[ERR] unable to create new API client for renewal for accessor %s: %s",
+			info.Accessor, err)
+		return
+	}
+	client.SetToken(info.ClientToken)
+	auth := client.Auth().Token()
+	secret, err := auth.RenewSelf(0)
 	if err != nil {
 		b.log.Printf("[ERR] token renewal failed for accessor %s: %s",
 			info.Accessor, err)
