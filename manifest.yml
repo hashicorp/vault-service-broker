@@ -2,6 +2,7 @@
 applications:
   - name: vault-broker
     command: cf-vault-service-broker
+    buildpack: go_buildpack
     env:
       GOVERSION: go1.7
       GOPACKAGENAME: github.com/hashicorp/cf-vault-service-broker
