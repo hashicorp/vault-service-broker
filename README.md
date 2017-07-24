@@ -23,8 +23,8 @@ Additionally the broker is configured to use basic authentication. The variables
 will be:
 
 ```sh
-$ export USERNAME="vault"
-$ export PASSWORD="vault"
+$ export AUTH_USERNAME="vault"
+$ export AUTH_PASSWORD="broker-secret-password"
 ```
 
 ### Deploying the Broker
@@ -69,8 +69,8 @@ To configure the broker, provide the following environment variables:
 ```shell
 $ cf set-env vault-broker VAULT_ADDR "$VAULT_ADDR"
 $ cf set-env vault-broker VAULT_TOKEN "$VAULT_TOKEN"
-$ cf set-env vault-broker SECURITY_USER_NAME "$USERNAME"
-$ cf set-env vault-broker SECURITY_USER_PASSWORD "$PASSWORD"
+$ cf set-env vault-broker SECURITY_USER_NAME "$AUTH_USERNAME"
+$ cf set-env vault-broker SECURITY_USER_PASSWORD "$AUTH_PASSWORD"
 ```
 
 Now that it's configured, start the broker:
@@ -91,8 +91,13 @@ vault-broker   started           1/1         256M     512M   vault-broker-torped
 Grab the URL and save it in a variable or copy it to your clipboard - we will need this later.
 
 ```shell
-BROKER_URL=$(cf app vault-broker | grep urls: | awk '{print $2}')
+export BROKER_URL=$(cf app vault-broker | grep -E -w 'urls:|routes:' | awk '{print $2}')
 ```
+
+NOTE: Different version of Cloud Foundry display this information differently. If
+the result of the pipeline above is empty, try running `cf app vault-broker` and
+look at the output. It is possible that the key has changed again and you'll
+need to grep for that instead of `urls:` or `routes:`.
 
 Again, there is no requirement that our broker run under Cloud Foundry - this
 could be a URL pointing to any service that hosts the broker, which is just a
@@ -101,7 +106,7 @@ Golang HTTP server.
 To verify the broker is working as expected, query its catalog:
 
 ```shell
-$ curl -s "$USERNAME:$PASSWORD@${BROKER_URL}/v2/catalog"
+$ curl -s "${AUTH_USERNAME}:${AUTH_PASSWORD}@${BROKER_URL}/v2/catalog"
 ```
 
 The result will be JSON that includes the list of plans for the broker:
@@ -111,15 +116,16 @@ The result will be JSON that includes the list of plans for the broker:
   "services": [
     {
       "id": "0654695e-0760-a1d4-1cad-5dd87b75ed99",
-      "name": "vault",
+      "name": "hashicorp-vault",
       "description": "HashiCorp Vault Service Broker",
       "bindable": true,
+      "tags": [""],
       "plan_updateable": false,
       "plans": [
         {
-          "id": "0654695e-0760-a1d4-1cad-5dd87b75ed99.default",
-          "name": "default",
-          "description": "Secure access to a multi-tenant HashiCorp Vault cluster",
+          "id": "0654695e-0760-a1d4-1cad-5dd87b75ed99.shared",
+          "name": "shared",
+          "description": "Secure access to Vault's storage and transit backends",
           "free": true
         }
       ]
@@ -149,7 +155,7 @@ $ cf target -s example
 Next, register the broker in this space:
 
 ```shell
-$ cf create-service-broker vault-broker vault vault "https://${BROKER_URL}" --space-scoped
+$ cf create-service-broker vault-broker "${AUTH_USERNAME}" "${AUTH_PASSWORD}" "https://${BROKER_URL}" --space-scoped
 ```
 
 Note: This will allow developers in the current space to access the broker. If
@@ -158,13 +164,19 @@ their own instance. This is a good starting workflow, but more complex setups
 should investigate [allowing access to plans globally or
 per-organization][cf-service-acls].
 
+Note: Here we are scoping the broker to a space. In larger installations, it may
+be desirable to run a centralized instance of the broker that is accessible to
+all spaces in the organization. For more information on this deployment pattern,
+please see the notes in the [standard broker](#global-standard-broker) section.
+
 To verify the command worked, query the marketplace. You should see the Vault broker
 with a plan of 'default' in addition to any other services you may have access to:
 
 ```shell
 $ cf marketplace
+service           plans             description
+hashicorp-vault   shared            HashiCorp Vault Service Broker
 # ...
-vault          default           HashiCorp Vault Service Broker
 ```
 
 ### Create a service instance and bind an app
@@ -172,15 +184,15 @@ vault          default           HashiCorp Vault Service Broker
 After registering the service in the marketplace, it is now possible to create a
 service instance and bind to it.
 
-First, create a service instance using the default plan.  For this example we will
-name the service instance 'my-vault':
+First, create a service instance using the default plan.  For this example we
+will name the service instance 'my-vault':
 
 ```shell
-$ cf create-service vault default my-vault
+$ cf create-service hashicorp-vault shared my-vault
 ```
 
-With a service instance in place, you are ready to bind an app.
-Suppose we have an app called 'my-app'.
+With a service instance in place, you are ready to bind an app. Suppose we have
+an app called 'my-app'.
 
 ```shell
 $ cf bind-service my-app my-vault
@@ -203,28 +215,31 @@ $ cf env my-app
 The `VCAP_SERVICES` environment variable will have a section similar to
 the following:
 
-```javascript
-"vault": [
-  {
-    "name": "my-vault",
-    "plan": "default",
-    "credentials": {
-      "address":"https://vault.company.internal:8200/",
-      "auth":{
-        "accessor":"b1074bb8-4d15-36cf-54dd-2716fb8ac91d",
-        "token":"dff95895-6a03-0b29-6458-dc8602dc9df8"
-      },
-      "backends":{
-        "generic":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/secret",
-        "transit":"cf/203f2469-04e4-47b8-bc17-f3af56df8019/transit"
-      },
-      "backends_shared":{
-        "organization":"cf/3c88c61e-875b-4530-b269-970f926340c4/secret",
-        "space":"cf/0348d384-f7d4-462b-9bd9-5a4c05b21b6c/secret"
+```json
+{
+  "hashicorp-vault": [
+    {
+      "name": "my-vault",
+      "plan": "shared",
+      "label": "hashicorp-vault",
+      "credentials": {
+        "address": "https://vault.company.internal:8200/",
+        "auth": {
+          "accessor": "171a13e0-cd51-b4ae-4b29-81321600ceb2",
+          "token": "5142df0f-cc39-a899-5e74-dd357c5e1152"
+        },
+        "backends": {
+          "generic": "cf/8bcae1a7-e1b8-4c9a-a0f4-ee1e538ebfbe/secret",
+          "transit": "cf/8bcae1a7-e1b8-4c9a-a0f4-ee1e538ebfbe/transit"
+        },
+        "backends_shared": {
+          "organization": "cf/bc58452e-b7d1-46fe-bf74-5335e70708ad/secret",
+          "space": "cf/072bfc67-1beb-4dd1-beb7-f7b05f00fc1a/secret"
+        }
       }
     }
-  }
-]
+  ]
+}
 ```
 
 The keys of the `credentials` section are as follows:
@@ -313,6 +328,13 @@ following operations:
 It is important to note that all instances of a Cloud Foundry application
 will share the same `vault_token`. This is not the recommended pattern for
 using Vault, but it is an existing limitation of the service broker model.
+
+### Unbinding and Deleting
+
+When unbinding from a service or deleting the service broker entirely, the
+broker deletes an instance-specific data. For safety, the broker does not delete
+an space or organization-specific mounts, even if there are no remaining service
+brokers using it.
 
 ### Broker Vault Token Permissions
 
@@ -434,7 +456,7 @@ currently recognizes the following.
 
 The service broker has an opinionated setup of policies and mounts to provide a
 simplified user experience for getting started which matches the organizational
-model of CloudFoundry. However an application may require access to existing
+model of Cloud Foundry. However an application may require access to existing
 data or backends.
 
 Once the broker creates the policy for a service id `cf-<instance_id>` that
@@ -447,6 +469,67 @@ $ vault read -field=rules sys/policy/cf-<instance_id>
 ```
 
 Append any additional rules to the end.
+
+### Global Standard Broker
+
+The default configuration and examples above use a "space scoped" broker. For
+larger installations, it may be desirable to run a centralized instance of the
+broker that is accessible to all spaces and applications in the system. This is
+generally called a "standard broker" in Cloud Foundry terminology. To deploy a
+global broker, an admin must add, publish, and permit access as follows.
+
+First, create the broker. Note the lack of `--space-scoped` as compared to the
+previous commands.
+
+```shell
+$ cf create-service-broker vault-broker "${AUTH_USERNAME}" "${AUTH_PASSWORD}" "https://${BROKER_URL}"
+```
+
+To verify the broker was created:
+
+```shell
+$ cf service-access
+# ...
+
+broker: vault-broker
+   service           plan     access   orgs
+   hashicorp-vault   shared   none
+```
+
+Notice the access is listed as "none". This broker will not appear in the
+marketplace until activated by an admin. To activate, run:
+
+```shell
+$ cf enable-service-access hashicorp-vault
+```
+
+It is possible to restrict the access to particular organizations or plans.
+
+```shell
+$ cf enable-service-access hashicorp-vault -o my-org
+```
+
+Verify the plan is enabled:
+
+```shell
+$ cf service-access
+# ...
+
+broker: vault-broker
+   service           plan     access   orgs
+   hashicorp-vault   shared   all
+```
+
+And check in the marketplace
+
+```shell
+$ cf marketplace
+service           plans             description
+hashicorp-vault   shared            HashiCorp Vault Service Broker
+# ...
+```
+
+Now all spaces have access to this centralized broker!
 
 ## Contributing
 
