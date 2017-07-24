@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -23,22 +25,25 @@ const (
 	VaultPlanDescription = "Secure access to Vault's storage and transit backends"
 
 	// VaultPeriodicTTL is the token role periodic TTL.
-	VaultPeriodicTTL = 5 * 86400
+	VaultPeriodicTTL = 5 * 24 * 60 * 60
+
+	// VaultDefaultSpacePolicy is the default policy for space data.
+	VaultDefaultSpacePolicy = "write"
+
+	// VaultDefaultOrgPolicy is the default policy for organizational data.
+	VaultDefaultOrgPolicy = "read"
 )
 
+// Ensure we implement the broker API
 var _ brokerapi.ServiceBroker = (*Broker)(nil)
 
 type bindingInfo struct {
-	Organization  string
-	Space         string
-	Binding       string
-	ClientToken   string
-	Accessor      string
-	LeaseDuration int
-	Renew         time.Time
-	Expires       time.Time
-
-	timer *time.Timer
+	Organization string
+	Space        string
+	Binding      string
+	ClientToken  string
+	Accessor     string
+	stopCh       chan struct{}
 }
 
 type instanceInfo struct {
@@ -75,18 +80,19 @@ type Broker struct {
 	instances     map[string]*instanceInfo
 	instancesLock sync.Mutex
 
-	running bool
-	runLock sync.Mutex
-
-	stopCh chan struct{}
+	// stopLock, stopped, and stopCh are used to control the stopping behavior of
+	// the broker.
+	stopLock sync.Mutex
+	running  bool
+	stopCh   chan struct{}
 }
 
 // Start is used to start the broker
 func (b *Broker) Start() error {
 	b.log.Printf("[INFO] starting broker")
 
-	b.runLock.Lock()
-	defer b.runLock.Unlock()
+	b.stopLock.Lock()
+	defer b.stopLock.Unlock()
 
 	// Do nothing if started
 	if b.running {
@@ -95,7 +101,7 @@ func (b *Broker) Start() error {
 	}
 
 	// Create the stop channel
-	b.stopCh = make(chan struct{}, 1)
+	b.stopCh = make(chan struct{})
 
 	// Start background renewal
 	if b.vaultRenewToken {
@@ -116,7 +122,7 @@ func (b *Broker) Start() error {
 	mounts := map[string]string{
 		"cf/broker": "generic",
 	}
-	b.log.Printf("[DEBUG] creating mounts %#v", mounts)
+	b.log.Printf("[DEBUG] creating mounts %s", mapToKV(mounts, ", "))
 	if err := b.idempotentMount(mounts); err != nil {
 		return errors.Wrap(err, "failed to create mounts")
 	}
@@ -154,6 +160,7 @@ func (b *Broker) Start() error {
 	b.bindLock.Unlock()
 
 	b.running = true
+
 	return nil
 }
 
@@ -239,22 +246,9 @@ func (b *Broker) restoreBind(instanceID, bindingID string) error {
 		return errors.Wrapf(err, "failed to decode binding info for %s", path)
 	}
 
-	// Determine when we should renew
-	nextRenew := info.Renew.Add(time.Duration(info.LeaseDuration/2) * time.Second)
-	now := time.Now().UTC()
-
-	// Determine when we should first first
-	var renewIn time.Duration
-	if nextRenew.Before(now) {
-		renewIn = 5 * time.Second // Schedule immediate renew
-	} else {
-		renewIn = nextRenew.Sub(now)
-	}
-
-	// Setup Renew timer
-	info.timer = time.AfterFunc(renewIn, func() {
-		b.handleRenew(info)
-	})
+	// Start a renewer for this token
+	info.stopCh = make(chan struct{})
+	go b.renewAuth(info.ClientToken, info.Accessor, info.stopCh)
 
 	// Store the info
 	b.bindLock.Lock()
@@ -267,21 +261,16 @@ func (b *Broker) restoreBind(instanceID, bindingID string) error {
 func (b *Broker) Stop() error {
 	b.log.Printf("[INFO] stopping broker")
 
-	b.runLock.Lock()
-	defer b.runLock.Unlock()
+	b.stopLock.Lock()
+	defer b.stopLock.Unlock()
 
 	// Do nothing if shutdown
 	if !b.running {
 		return nil
 	}
 
-	// Stop all the renew timers
-	b.bindLock.Lock()
-	for _, info := range b.binds {
-		info.timer.Stop()
-	}
-	b.bindLock.Unlock()
-
+	// Close the stop channel and mark as stopped
+	close(b.stopCh)
 	b.running = false
 	return nil
 }
@@ -318,28 +307,29 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	b.log.Printf("[INFO] provisioning instance %s in %s/%s",
 		instanceID, details.OrganizationGUID, details.SpaceGUID)
 
+	// Create the spec to return
+	var spec brokerapi.ProvisionedServiceSpec
+
 	// Generate the new policy
 	var buf bytes.Buffer
 	inp := ServicePolicyTemplateInput{
 		ServiceID:   instanceID,
 		SpaceID:     details.SpaceGUID,
-		SpacePolicy: "write",
+		SpacePolicy: VaultDefaultSpacePolicy,
 		OrgID:       details.OrganizationGUID,
-		OrgPolicy:   "read",
+		OrgPolicy:   VaultDefaultOrgPolicy,
 	}
 
 	b.log.Printf("[DEBUG] generating policy for %s", instanceID)
 	if err := GeneratePolicy(&buf, &inp); err != nil {
-		err = errors.Wrapf(err, "failed to generate policy for %s", instanceID)
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to generate policy for %s", instanceID)
 	}
 
 	// Create the new policy
 	policyName := "cf-" + instanceID
 	b.log.Printf("[DEBUG] creating new policy %s", policyName)
 	if err := b.client.Sys().PutPolicy(policyName, buf.String()); err != nil {
-		err = errors.Wrapf(err, "failed to create policy %s", policyName)
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to create policy %s", policyName)
 	}
 
 	// Create the new token role
@@ -351,8 +341,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 	b.log.Printf("[DEBUG] creating new token role for %s", path)
 	if _, err := b.client.Logical().Write(path, data); err != nil {
-		err = errors.Wrapf(err, "failed to create token role for %s", path)
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to create token role for %s", path)
 	}
 
 	// Determine the mounts we need
@@ -364,10 +353,9 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 
 	// Mount the backends
-	b.log.Printf("[DEBUG] creating mounts %#v", mounts)
+	b.log.Printf("[DEBUG] creating mounts %s", mapToKV(mounts, ", "))
 	if err := b.idempotentMount(mounts); err != nil {
-		err = errors.Wrapf(err, "failed to create mounts %#v", mounts)
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to create mounts %s", mapToKV(mounts, ", "))
 	}
 
 	// Generate instance info
@@ -377,8 +365,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 	payload, err := json.Marshal(info)
 	if err != nil {
-		err = errors.Wrap(err, "failed to encode instance json")
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to encode instance json")
 	}
 
 	// Store the token and metadata in the generic secret backend
@@ -387,8 +374,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	if _, err := b.client.Logical().Write(instancePath, map[string]interface{}{
 		"json": string(payload),
 	}); err != nil {
-		err = errors.Wrapf(err, "failed to commit instance %s", instancePath)
-		return brokerapi.ProvisionedServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to commit instance %s", instancePath)
 	}
 
 	// Save the instance
@@ -398,7 +384,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	b.instancesLock.Unlock()
 
 	// Done
-	return brokerapi.ProvisionedServiceSpec{}, nil
+	return spec, nil
 }
 
 // Deprovision is used to remove a tenant of Vault. We use this to
@@ -406,39 +392,38 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 func (b *Broker) Deprovision(ctx context.Context, instanceID string, details brokerapi.DeprovisionDetails, async bool) (brokerapi.DeprovisionServiceSpec, error) {
 	b.log.Printf("[INFO] deprovisioning %s", instanceID)
 
+	// Create the spec to return
+	var spec brokerapi.DeprovisionServiceSpec
+
 	// Unmount the backends
 	mounts := []string{
 		"/cf/" + instanceID + "/secret",
 		"/cf/" + instanceID + "/transit",
 	}
-	b.log.Printf("[DEBUG] removing mounts %#v", mounts)
+	b.log.Printf("[DEBUG] removing mounts %s", strings.Join(mounts, ", "))
 	if err := b.idempotentUnmount(mounts); err != nil {
-		err = errors.Wrap(err, "failed to remove mounts")
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to remove mounts")
 	}
 
 	// Delete the token role
 	path := "/auth/token/roles/cf-" + instanceID
 	b.log.Printf("[DEBUG] deleting token role %s", path)
 	if _, err := b.client.Logical().Delete(path); err != nil {
-		err = errors.Wrapf(err, "failed to delete token role %s", path)
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to delete token role %s", path)
 	}
 
 	// Delete the token policy
 	policyName := "cf-" + instanceID
 	b.log.Printf("[DEBUG] deleting policy %s", policyName)
 	if err := b.client.Sys().DeletePolicy(policyName); err != nil {
-		err = errors.Wrapf(err, "failed to delete policy %s", policyName)
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to delete policy %s", policyName)
 	}
 
 	// Delete the instance info
 	instancePath := "cf/broker/" + instanceID
 	b.log.Printf("[DEBUG] deleting instance info at %s", instancePath)
 	if _, err := b.client.Logical().Delete(instancePath); err != nil {
-		err = errors.Wrapf(err, "failed to delete instance info at %s", instancePath)
-		return brokerapi.DeprovisionServiceSpec{}, err
+		return spec, b.wErrorf(err, "failed to delete instance info at %s", instancePath)
 	}
 
 	// Delete the instance from the map
@@ -448,7 +433,7 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	b.instancesLock.Unlock()
 
 	// Done!
-	return brokerapi.DeprovisionServiceSpec{}, nil
+	return spec, nil
 }
 
 // Bind is used to attach a tenant of Vault to an application in CloudFoundry.
@@ -457,7 +442,10 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	b.log.Printf("[INFO] binding service %s to instance %s",
 		bindingID, instanceID)
 
-	binding := brokerapi.Binding{}
+	// Create the binding to return
+	var binding brokerapi.Binding
+
+	// Create the role name to create the token against
 	roleName := "cf-" + instanceID
 
 	// Create the token
@@ -470,12 +458,10 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		Renewable:   &renewable,
 	}, roleName)
 	if err != nil {
-		err = errors.Wrapf(err, "failed to create token with role %s", roleName)
-		return binding, err
+		return binding, b.wErrorf(err, "failed to create token with role %s", roleName)
 	}
 	if secret.Auth == nil {
-		err = fmt.Errorf("secret with role %s has no auth", roleName)
-		return binding, err
+		return binding, b.errorf("secret with role %s has no auth", roleName)
 	}
 
 	// Get the instance for this instanceID
@@ -484,25 +470,20 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	instance, ok := b.instances[instanceID]
 	b.instancesLock.Unlock()
 	if !ok {
-		return binding, fmt.Errorf("no instance exists with ID %s", instanceID)
+		return binding, b.errorf("no instance exists with ID %s", instanceID)
 	}
 
 	// Create a binding info object
-	now := time.Now().UTC()
-	expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
 	info := &bindingInfo{
-		Organization:  instance.OrganizationGUID,
-		Space:         instance.SpaceGUID,
-		Binding:       bindingID,
-		ClientToken:   secret.Auth.ClientToken,
-		Accessor:      secret.Auth.Accessor,
-		LeaseDuration: secret.Auth.LeaseDuration,
-		Renew:         now,
-		Expires:       expires,
+		Organization: instance.OrganizationGUID,
+		Space:        instance.SpaceGUID,
+		Binding:      bindingID,
+		ClientToken:  secret.Auth.ClientToken,
+		Accessor:     secret.Auth.Accessor,
 	}
 	data, err := json.Marshal(info)
 	if err != nil {
-		return binding, errors.Wrap(err, "failed to encode binding json")
+		return binding, b.wErrorf(err, "failed to encode binding json")
 	}
 
 	// Store the token and metadata in the generic secret backend
@@ -519,10 +500,8 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	}
 
 	// Setup Renew timer
-	renew := time.Duration(secret.Auth.LeaseDuration) / 2 * time.Second
-	info.timer = time.AfterFunc(renew, func() {
-		b.handleRenew(info)
-	})
+	info.stopCh = make(chan struct{})
+	go b.renewAuth(info.ClientToken, info.Accessor, info.stopCh)
 
 	// Store the info
 	b.log.Printf("[DEBUG] saving bind %s to cache", bindingID)
@@ -559,39 +538,41 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	b.log.Printf("[DEBUG] reading %s", path)
 	secret, err := b.client.Logical().Read(path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read binding info for %s", path)
+		return b.wErrorf(err, "failed to read binding info for %s", path)
 	}
 	if secret == nil || len(secret.Data) == 0 {
-		return fmt.Errorf("missing bind info for unbind for %s", path)
+		return b.errorf("missing bind info for unbind for %s", path)
 	}
 
 	// Decode the binding info
 	b.log.Printf("[DEBUG] decoding binding info for %s", path)
 	info, err := decodeBindingInfo(secret.Data)
 	if err != nil {
-		return errors.Wrapf(err, "failed to decode binding info for %s", path)
+		return b.wErrorf(err, "failed to decode binding info for %s", path)
 	}
 
 	// Revoke the token
 	a := info.Accessor
 	b.log.Printf("[DEBUG] revoking accessor %s for path %s", a, path)
 	if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
-		return errors.Wrapf(err, "failed to revoke accessor %s", a)
+		return b.wErrorf(err, "failed to revoke accessor %s", a)
 	}
 
 	// Delete the binding info
 	b.log.Printf("[DEBUG] deleting binding info at %s", path)
 	if _, err := b.client.Logical().Delete(path); err != nil {
-		return errors.Wrapf(err, "failed to delete binding info at %s", path)
+		return b.wErrorf(err, "failed to delete binding info at %s", path)
 	}
 
-	// Delete the bind if it exists, stop the renew timer
+	// Delete the bind if it exists, stopping any renewers
 	b.log.Printf("[DEBUG] removing binding %s from cache", bindingID)
 	b.bindLock.Lock()
 	existing, ok := b.binds[bindingID]
 	if ok {
 		delete(b.binds, bindingID)
-		existing.timer.Stop()
+		if existing.stopCh != nil {
+			close(existing.stopCh)
+		}
 	}
 	b.bindLock.Unlock()
 
@@ -624,7 +605,7 @@ func (b *Broker) idempotentMount(m map[string]string) error {
 
 	// Strip all leading and trailing things
 	mounts := make(map[string]struct{})
-	for k, _ := range result {
+	for k := range result {
 		k = strings.Trim(k, "/")
 		mounts[k] = struct{}{}
 	}
@@ -655,7 +636,7 @@ func (b *Broker) idempotentUnmount(l []string) error {
 
 	// Strip all leading and trailing things
 	mounts := make(map[string]struct{})
-	for k, _ := range result {
+	for k := range result {
 		k = strings.Trim(k, "/")
 		mounts[k] = struct{}{}
 	}
@@ -672,109 +653,70 @@ func (b *Broker) idempotentUnmount(l []string) error {
 	return nil
 }
 
-// handleRenew is used to handle renewing a token
-func (b *Broker) handleRenew(info *bindingInfo) {
-	b.log.Printf("[DEBUG] renewing token with accessor %s", info.Accessor)
+// renewAuth renews the given token. It is designed to be called as a goroutine
+// and will log any errors it encounters.
+func (b *Broker) renewAuth(token, accessor string, stopCh <-chan struct{}) {
+	// Sleep for a random number of milliseconds. This helps prevent a thundering
+	// herd in the event a broker is restarted with a lot of bindings.
+	time.Sleep(time.Duration(rand.Intn(5000)) * time.Millisecond)
 
-	// If we are past the expiration time, no need to renew anymore
-	if time.Now().UTC().After(info.Expires) {
-		b.log.Printf("[WARN] aborting renewing expired token with accessor %s", info.Accessor)
+	// Use renew-self instead of lookup here because we want the freshest renew
+	// and we can find out if it's renewable or not.
+	secret, err := b.client.Auth().Token().RenewTokenAsSelf(token, 0)
+	if err != nil {
+		b.log.Printf("[ERR] renew-token (%s): error looking up self: %s", accessor, err)
 		return
 	}
 
-	// Attempt to renew the token; we first create a new client because we want
-	// to use RenewSelf and that requires setting the client token
-	client, err := api.NewClient(nil)
-	if err != nil {
-		b.log.Printf("[ERR] unable to create new API client for renewal for accessor %s: %s",
-			info.Accessor, err)
-		return
-	}
-	client.SetToken(info.ClientToken)
-	auth := client.Auth().Token()
-	secret, err := auth.RenewSelf(0)
-	if err != nil {
-		b.log.Printf("[ERR] token renewal failed for accessor %s: %s",
-			info.Accessor, err)
-	}
-
-	// Setup Renew timer
-	var renew time.Duration
-	if secret != nil && secret.Auth != nil {
-		// TODO(armon): Should we update and persist the binding info?
-		//now := time.Now().UTC()
-		//expires := now.Add(time.Duration(secret.Auth.LeaseDuration) * time.Second)
-		//info.LeaseDuration = secret.Auth.LeaseDuration
-		//info.Renew = now
-		//info.Expires = expires
-
-		renew = time.Duration(secret.Auth.LeaseDuration) / 2 * time.Second
-	} else {
-		renew = 60 * time.Second
-	}
-	info.timer = time.AfterFunc(renew, func() {
-		b.handleRenew(info)
+	renewer, err := b.client.NewRenewer(&api.RenewerInput{
+		Secret: secret,
 	})
-}
+	if err != nil {
+		b.log.Printf("[ERR] renew-token (%s): failed to create renewer: %s", accessor, err)
+		return
+	}
+	go renewer.Renew()
+	defer renewer.Stop()
 
-// renewVaultToken infinitely renews the brokers Vault token until stopped. This
-// is designed to run as a background goroutine.
-func (b *Broker) renewVaultToken() {
 	for {
-		secret, err := b.client.Auth().Token().LookupSelf()
-		if err != nil {
-			b.log.Printf("[ERR] renew-token: error renewing vault token: %s", err)
-		}
-		if secret == nil || len(secret.Data) == 0 {
-			b.log.Printf("[ERR] renew-token: secret has no data: %s", err)
-		}
-
-		var dur time.Duration
-		if secret.LeaseDuration > 0 {
-			dur = time.Duration(secret.LeaseDuration) * time.Second
-		} else {
-			// Probably periodic
-			ttl, ok := secret.Data["ttl"]
-			if ok {
-				switch ttl.(type) {
-				case int, int64:
-					dur = time.Duration(ttl.(int64)) * time.Second
-				case string:
-					dur, _ = time.ParseDuration(ttl.(string) + "s")
-				case json.Number:
-					dur, _ = time.ParseDuration(string(ttl.(json.Number)) + "s")
-				}
-			}
-		}
-
-		// Cut in half for safety buffer on renewal
-		dur = dur / 2.0
-
-		// Make sure we have a sane duration. We might not have a duration if Vault
-		// is down or if some of the parsing above went awry.
-		if dur == 0 {
-			dur = 5 * time.Minute
-		}
-
-		// If we have a short duration, set it back to a second to prevent a
-		// hot-loop from occurring.
-		if dur < 1*time.Second {
-			b.log.Printf("[WARN] dur %s is less than 1s, resetting", dur)
-			dur = 1 * time.Second
-		}
-
-		b.log.Printf("[INFO] sleeping for %s", dur)
-
 		select {
+		case err := <-renewer.DoneCh():
+			if err != nil {
+				b.log.Printf("[ERR] renew-token (%s): failed: %s", accessor, err)
+			}
+			b.log.Printf("[WARN] renew-token (%s): renewer stopped: token probably expired!", accessor)
+			return
+		case renewal := <-renewer.RenewCh():
+			remaining := "no auth data"
+			if renewal.Secret != nil && renewal.Secret.Auth != nil {
+				seconds := renewal.Secret.Auth.LeaseDuration
+				remaining = (time.Duration(seconds) * time.Second).String()
+			}
+			b.log.Printf("[INFO] renew-token (%s): successfully renewed token (%s)", accessor, remaining)
+		case <-stopCh:
+			b.log.Printf("[INFO] renew-token (%s): stopping renewer: unbind requested", accessor)
+			return
 		case <-b.stopCh:
 			return
-		case <-time.After(dur):
-			b.log.Printf("[INFO] renewing vault token")
-			if _, err := b.client.Auth().Token().RenewSelf(0); err != nil {
-				b.log.Printf("[WARN] failed to renew token: %s", err)
-			}
 		}
 	}
+}
+
+// renewVaultToken is a convenience wrapper around renewAuth which looks up
+// metadata about the token attached to this broker and starts the renewer.
+func (b *Broker) renewVaultToken() {
+	// We would like to use lookup-self here, but that does not include the auth
+	// data we need back...
+	secret, err := b.client.Auth().Token().RenewSelf(0)
+	if err != nil {
+		b.log.Printf("[ERR] renew-token: failed to lookup client vault token: %s", err)
+		return
+	}
+	if secret.Auth == nil {
+		b.log.Printf("[ERR] renew-token: renew-self came back with empty auth")
+		return
+	}
+	b.renewAuth(secret.Auth.ClientToken, secret.Auth.Accessor, nil)
 }
 
 func decodeBindingInfo(m map[string]interface{}) (*bindingInfo, error) {
@@ -811,4 +753,38 @@ func decodeInstanceInfo(m map[string]interface{}) (*instanceInfo, error) {
 		return nil, err
 	}
 	return &info, nil
+}
+
+func mapToKV(m map[string]string, joiner string) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	r := make([]string, len(keys))
+	for i, k := range keys {
+		r[i] = fmt.Sprintf("%s=%s", k, m[k])
+	}
+	return strings.Join(r, joiner)
+}
+
+// error wraps the given error into the logger and returns it. Vault likes to
+// have multiline error messages, which don't mix well with the service broker's
+// logging model. Here we strip any newline characters and replace them with a
+// space.
+func (b *Broker) error(err error) error {
+	b.log.Printf("[ERR] %s", strings.Replace(err.Error(), "\n", " ", -1))
+	return err
+}
+
+// errorf creates a new error from the string and returns it.
+func (b *Broker) errorf(s string, f ...interface{}) error {
+	return b.error(fmt.Errorf(s, f...))
+}
+
+// wErrorf wraps the given error with the string/formatter, logs, and returns
+// it.
+func (b *Broker) wErrorf(err error, s string, f ...interface{}) error {
+	return b.error(errors.Wrapf(err, s, f...))
 }
