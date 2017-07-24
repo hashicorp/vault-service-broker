@@ -10,32 +10,30 @@ import (
 	"github.com/pivotal-cf/brokerapi/auth"
 )
 
-const provisionLogKey = "provision"
-const deprovisionLogKey = "deprovision"
-const bindLogKey = "bind"
-const unbindLogKey = "unbind"
-const lastOperationLogKey = "lastOperation"
+const (
+	provisionLogKey     = "provision"
+	deprovisionLogKey   = "deprovision"
+	bindLogKey          = "bind"
+	unbindLogKey        = "unbind"
+	lastOperationLogKey = "lastOperation"
 
-const instanceIDLogKey = "instance-id"
-const instanceDetailsLogKey = "instance-details"
-const bindingIDLogKey = "binding-id"
+	instanceIDLogKey      = "instance-id"
+	instanceDetailsLogKey = "instance-details"
+	bindingIDLogKey       = "binding-id"
 
-const invalidServiceDetailsErrorKey = "invalid-service-details"
-const invalidBindDetailsErrorKey = "invalid-bind-details"
-const invalidUnbindDetailsErrorKey = "invalid-unbind-details"
-const invalidDeprovisionDetailsErrorKey = "invalid-deprovision-details"
-const instanceLimitReachedErrorKey = "instance-limit-reached"
-const instanceAlreadyExistsErrorKey = "instance-already-exists"
-const bindingAlreadyExistsErrorKey = "binding-already-exists"
-const instanceMissingErrorKey = "instance-missing"
-const bindingMissingErrorKey = "binding-missing"
-const asyncRequiredKey = "async-required"
-const planChangeNotSupportedKey = "plan-change-not-supported"
-const unknownErrorKey = "unknown-error"
-const invalidRawParamsKey = "invalid-raw-params"
-const appGuidNotProvidedErrorKey = "app-guid-not-provided"
-
-const statusUnprocessableEntity = 422
+	invalidServiceDetailsErrorKey = "invalid-service-details"
+	invalidBindDetailsErrorKey    = "invalid-bind-details"
+	instanceLimitReachedErrorKey  = "instance-limit-reached"
+	instanceAlreadyExistsErrorKey = "instance-already-exists"
+	bindingAlreadyExistsErrorKey  = "binding-already-exists"
+	instanceMissingErrorKey       = "instance-missing"
+	bindingMissingErrorKey        = "binding-missing"
+	asyncRequiredKey              = "async-required"
+	planChangeNotSupportedKey     = "plan-change-not-supported"
+	unknownErrorKey               = "unknown-error"
+	invalidRawParamsKey           = "invalid-raw-params"
+	appGuidNotProvidedErrorKey    = "app-guid-not-provided"
+)
 
 type BrokerCredentials struct {
 	Username string
@@ -85,7 +83,7 @@ func (h serviceBrokerHandler) provision(w http.ResponseWriter, req *http.Request
 	var details ProvisionDetails
 	if err := json.NewDecoder(req.Body).Decode(&details); err != nil {
 		logger.Error(invalidServiceDetailsErrorKey, err)
-		h.respond(w, statusUnprocessableEntity, ErrorResponse{
+		h.respond(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Description: err.Error(),
 		})
 		return
@@ -100,26 +98,10 @@ func (h serviceBrokerHandler) provision(w http.ResponseWriter, req *http.Request
 	provisionResponse, err := h.serviceBroker.Provision(req.Context(), instanceID, details, acceptsIncompleteFlag)
 
 	if err != nil {
-		switch err {
-		case ErrRawParamsInvalid:
-			logger.Error(invalidRawParamsKey, err)
-			h.respond(w, 422, ErrorResponse{
-				Description: err.Error(),
-			})
-		case ErrInstanceAlreadyExists:
-			logger.Error(instanceAlreadyExistsErrorKey, err)
-			h.respond(w, http.StatusConflict, EmptyResponse{})
-		case ErrInstanceLimitMet:
-			logger.Error(instanceLimitReachedErrorKey, err)
-			h.respond(w, http.StatusInternalServerError, ErrorResponse{
-				Description: err.Error(),
-			})
-		case ErrAsyncRequired:
-			logger.Error(asyncRequiredKey, err)
-			h.respond(w, 422, ErrorResponse{
-				Error:       "AsyncRequired",
-				Description: err.Error(),
-			})
+		switch err := err.(type) {
+		case *FailureResponse:
+			logger.Error(err.LoggerAction(), err)
+			h.respond(w, err.ValidatedStatusCode(logger), err.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
@@ -148,7 +130,7 @@ func (h serviceBrokerHandler) update(w http.ResponseWriter, req *http.Request) {
 	var details UpdateDetails
 	if err := json.NewDecoder(req.Body).Decode(&details); err != nil {
 		h.logger.Error(invalidServiceDetailsErrorKey, err)
-		h.respond(w, statusUnprocessableEntity, ErrorResponse{
+		h.respond(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Description: err.Error(),
 		})
 		return
@@ -158,30 +140,17 @@ func (h serviceBrokerHandler) update(w http.ResponseWriter, req *http.Request) {
 
 	updateServiceSpec, err := h.serviceBroker.Update(req.Context(), instanceID, details, acceptsIncompleteFlag)
 	if err != nil {
-		switch err {
-		case ErrAsyncRequired:
-			h.logger.Error(asyncRequiredKey, err)
-			h.respond(w, 422, ErrorResponse{
-				Error:       "AsyncRequired",
-				Description: err.Error(),
-			})
-			return
-
-		case ErrPlanChangeNotSupported:
-			h.logger.Error(planChangeNotSupportedKey, err)
-			h.respond(w, 422, ErrorResponse{
-				Error:       "PlanChangeNotSupported",
-				Description: err.Error(),
-			})
-			return
-
+		switch err := err.(type) {
+		case *FailureResponse:
+			h.logger.Error(err.LoggerAction(), err)
+			h.respond(w, err.ValidatedStatusCode(h.logger), err.ErrorResponse())
 		default:
 			h.logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
 				Description: err.Error(),
 			})
-			return
 		}
+		return
 	}
 
 	statusCode := http.StatusOK
@@ -206,16 +175,10 @@ func (h serviceBrokerHandler) deprovision(w http.ResponseWriter, req *http.Reque
 
 	deprovisionSpec, err := h.serviceBroker.Deprovision(req.Context(), instanceID, details, asyncAllowed)
 	if err != nil {
-		switch err {
-		case ErrInstanceDoesNotExist:
-			logger.Error(instanceMissingErrorKey, err)
-			h.respond(w, http.StatusGone, EmptyResponse{})
-		case ErrAsyncRequired:
-			logger.Error(asyncRequiredKey, err)
-			h.respond(w, 422, ErrorResponse{
-				Error:       "AsyncRequired",
-				Description: err.Error(),
-			})
+		switch err := err.(type) {
+		case *FailureResponse:
+			logger.Error(err.LoggerAction(), err)
+			h.respond(w, err.ValidatedStatusCode(logger), err.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
@@ -245,7 +208,7 @@ func (h serviceBrokerHandler) bind(w http.ResponseWriter, req *http.Request) {
 	var details BindDetails
 	if err := json.NewDecoder(req.Body).Decode(&details); err != nil {
 		logger.Error(invalidBindDetailsErrorKey, err)
-		h.respond(w, statusUnprocessableEntity, ErrorResponse{
+		h.respond(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Description: err.Error(),
 		})
 		return
@@ -253,22 +216,19 @@ func (h serviceBrokerHandler) bind(w http.ResponseWriter, req *http.Request) {
 
 	binding, err := h.serviceBroker.Bind(req.Context(), instanceID, bindingID, details)
 	if err != nil {
-		switch err {
-		case ErrInstanceDoesNotExist:
-			logger.Error(instanceMissingErrorKey, err)
-			h.respond(w, http.StatusNotFound, ErrorResponse{
-				Description: err.Error(),
-			})
-		case ErrBindingAlreadyExists:
-			logger.Error(bindingAlreadyExistsErrorKey, err)
-			h.respond(w, http.StatusConflict, ErrorResponse{
-				Description: err.Error(),
-			})
-		case ErrAppGuidNotProvided:
-			logger.Error(appGuidNotProvidedErrorKey, err)
-			h.respond(w, statusUnprocessableEntity, ErrorResponse{
-				Description: err.Error(),
-			})
+		switch err := err.(type) {
+		case *FailureResponse:
+			statusCode := err.ValidatedStatusCode(logger)
+			errorResponse := err.ErrorResponse()
+			if err == ErrInstanceDoesNotExist {
+				// work around ErrInstanceDoesNotExist having different pre-refactor behaviour to other actions
+				errorResponse = ErrorResponse{
+					Description: err.Error(),
+				}
+				statusCode = http.StatusNotFound
+			}
+			logger.Error(err.LoggerAction(), err)
+			h.respond(w, statusCode, errorResponse)
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
@@ -330,13 +290,10 @@ func (h serviceBrokerHandler) unbind(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err := h.serviceBroker.Unbind(req.Context(), instanceID, bindingID, details); err != nil {
-		switch err {
-		case ErrInstanceDoesNotExist:
-			logger.Error(instanceMissingErrorKey, err)
-			h.respond(w, http.StatusGone, EmptyResponse{})
-		case ErrBindingDoesNotExist:
-			logger.Error(bindingMissingErrorKey, err)
-			h.respond(w, http.StatusGone, EmptyResponse{})
+		switch err := err.(type) {
+		case *FailureResponse:
+			logger.Error(err.LoggerAction(), err)
+			h.respond(w, err.ValidatedStatusCode(logger), err.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
@@ -363,19 +320,16 @@ func (h serviceBrokerHandler) lastOperation(w http.ResponseWriter, req *http.Req
 	lastOperation, err := h.serviceBroker.LastOperation(req.Context(), instanceID, operationData)
 
 	if err != nil {
-		switch err {
-		case ErrInstanceDoesNotExist:
-			logger.Error(instanceMissingErrorKey, err)
-			h.respond(w, http.StatusGone, ErrorResponse{
-				Description: err.Error(),
-			})
+		switch err := err.(type) {
+		case *FailureResponse:
+			logger.Error(err.LoggerAction(), err)
+			h.respond(w, err.ValidatedStatusCode(logger), err.ErrorResponse())
 		default:
 			logger.Error(unknownErrorKey, err)
 			h.respond(w, http.StatusInternalServerError, ErrorResponse{
 				Description: err.Error(),
 			})
 		}
-
 		return
 	}
 
