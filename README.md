@@ -5,7 +5,7 @@ API][open-broker-api] for [HashiCorp's Vault][vault]. The service broker
 connects to an existing Vault cluster and can be used by multiple tenants within
 Cloud Foundry.
 
-[open-broker-api](https://openservicebrokerapi.org/)
+[open-broker-api]: https://openservicebrokerapi.org/
 
 ## Getting Started
 
