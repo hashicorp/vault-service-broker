@@ -14,7 +14,7 @@ path "cf/{{ .ServiceID }}" {
 }
 
 path "cf/{{ .ServiceID }}/*" {
-  policy = "write"
+	capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 path "cf/{{ .SpaceID }}" {
@@ -22,7 +22,7 @@ path "cf/{{ .SpaceID }}" {
 }
 
 path "cf/{{ .SpaceID }}/*" {
-  policy = "{{ .SpacePolicy }}"
+  capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 path "cf/{{ .OrgID }}" {
@@ -30,7 +30,7 @@ path "cf/{{ .OrgID }}" {
 }
 
 path "cf/{{ .OrgID }}/*" {
-  policy = "{{ .OrgPolicy }}"
+  capabilities = ["read", "list"]
 }
 `
 )
@@ -43,16 +43,8 @@ type ServicePolicyTemplateInput struct {
 	// SpaceID is the unique ID of the space.
 	SpaceID string
 
-	// SpacePolicy is the policy assigned to this service for the space. It
-	// should be one of "read" or "write."
-	SpacePolicy string
-
 	// OrgID is the unique ID of the space.
 	OrgID string
-
-	// OrgPolicy is the policy assigned to this service for the space. It
-	// should be one of "read" or "write.
-	OrgPolicy string
 }
 
 // GeneratePolicy takes an io.Writer object and template input and renders the

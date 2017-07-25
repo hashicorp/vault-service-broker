@@ -26,12 +26,6 @@ const (
 
 	// VaultPeriodicTTL is the token role periodic TTL.
 	VaultPeriodicTTL = 5 * 24 * 60 * 60
-
-	// VaultDefaultSpacePolicy is the default policy for space data.
-	VaultDefaultSpacePolicy = "write"
-
-	// VaultDefaultOrgPolicy is the default policy for organizational data.
-	VaultDefaultOrgPolicy = "read"
 )
 
 // Ensure we implement the broker API
@@ -313,11 +307,9 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	// Generate the new policy
 	var buf bytes.Buffer
 	inp := ServicePolicyTemplateInput{
-		ServiceID:   instanceID,
-		SpaceID:     details.SpaceGUID,
-		SpacePolicy: VaultDefaultSpacePolicy,
-		OrgID:       details.OrganizationGUID,
-		OrgPolicy:   VaultDefaultOrgPolicy,
+		ServiceID: instanceID,
+		SpaceID:   details.SpaceGUID,
+		OrgID:     details.OrganizationGUID,
 	}
 
 	b.log.Printf("[DEBUG] generating policy for %s", instanceID)
