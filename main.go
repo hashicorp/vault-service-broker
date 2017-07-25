@@ -31,6 +31,12 @@ const (
 
 	// DefaultServiceDescription is the default service description.
 	DefaultServiceDescription = "HashiCorp Vault Service Broker"
+
+	// DefaultPlanName is the name of our plan, only one supported
+	DefaultPlanName = "shared"
+
+	// DefaultPlanDescription is the default description.
+	DefaultPlanDescription = "Secure access to Vault's storage and transit backends"
 )
 
 func main() {
@@ -54,20 +60,32 @@ func main() {
 		serviceID = DefaultServiceID
 	}
 
-	// Get the name
+	// Get the service name
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = DefaultServiceName
 	}
 
-	// Get the description
+	// Get the service description
 	serviceDescription := os.Getenv("SERVICE_DESCRIPTION")
 	if serviceDescription == "" {
 		serviceDescription = DefaultServiceDescription
 	}
 
-	// Get the tags
+	// Get the service tags
 	serviceTags := strings.Split(os.Getenv("SERVICE_TAGS"), ",")
+
+	// Get the plan name
+	planName := os.Getenv("PLAN_NAME")
+	if planName == "" {
+		planName = DefaultPlanName
+	}
+
+	// Get the plan description
+	planDescription := os.Getenv("PLAN_DESCRIPTION")
+	if planDescription == "" {
+		planDescription = DefaultPlanDescription
+	}
 
 	// Parse the port
 	port := os.Getenv("PORT")
@@ -122,6 +140,9 @@ func main() {
 		serviceName:        serviceName,
 		serviceDescription: serviceDescription,
 		serviceTags:        serviceTags,
+
+		planName:        planName,
+		planDescription: planDescription,
 
 		vaultAdvertiseAddr: vaultAdvertiseAddr,
 		vaultRenewToken:    renew,

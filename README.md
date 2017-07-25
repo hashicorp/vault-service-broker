@@ -427,6 +427,10 @@ currently recognizes the following.
 
 - `SERVICE_TAGS` (default: none) - comma-separated list of tags for the service
 
+- `PLAN_NAME` (default: "shared") - the name of the plan in the marketplace
+
+- `PLAN_DESCRIPTION` (default: "Secure access to Vault's storage and transit backends") - description of the plan in the marketplace
+
 - `PORT` (default: "8000") - port to bind and listen on as the server (broker)
 
 - `VAULT_ADDR` (default: "https://127.0.0.1:8200") - address to the Vault server

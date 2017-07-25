@@ -18,12 +18,6 @@ import (
 )
 
 const (
-	// VaultPlanName is the name of our plan, only one supported
-	VaultPlanName = "shared"
-
-	// VaultPlanDescription is the default description.
-	VaultPlanDescription = "Secure access to Vault's storage and transit backends"
-
 	// VaultPeriodicTTL is the token role periodic TTL.
 	VaultPeriodicTTL = 5 * 24 * 60 * 60
 )
@@ -54,6 +48,10 @@ type Broker struct {
 	serviceName        string
 	serviceDescription string
 	serviceTags        []string
+
+	// plan-specific customization
+	planName        string
+	planDescription string
 
 	// vaultAdvertiseAddr is the address where Vault should be advertised to
 	// clients.
@@ -281,9 +279,9 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 			PlanUpdatable: false,
 			Plans: []brokerapi.ServicePlan{
 				brokerapi.ServicePlan{
-					ID:          fmt.Sprintf("%s.%s", b.serviceID, VaultPlanName),
-					Name:        VaultPlanName,
-					Description: VaultPlanDescription,
+					ID:          fmt.Sprintf("%s.%s", b.serviceID, b.planName),
+					Name:        b.planName,
+					Description: b.planDescription,
 					Free:        brokerapi.FreeValue(true),
 				},
 			},
