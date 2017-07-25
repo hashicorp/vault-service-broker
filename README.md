@@ -450,7 +450,7 @@ currently recognizes the following.
 
 - `SECURITY_USER_NAME` - (default: none) - username for basic auth
 
-- `SECURITY_USER_PASSWORD` - (default: none) password for basic auth
+- `SECURITY_USER_PASSWORD` - (default: none) - password for basic auth
 
 ### Granting Access to Other Paths
 
