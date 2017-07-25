@@ -1,15 +1,19 @@
-# Cloud Foundry Vault Service Broker
+# HashiCorp Vault Service Broker
 
-This repository provides an implementation of a Cloud Foundry service broker for
-[HashiCorp's Vault][vault]. The service broker connects to an existing Vault
-cluster and can be used by multiple tenants within Cloud Foundry.
+This repository provides an implementation of the [open service broker
+API][open-broker-api] for [HashiCorp's Vault][vault]. The service broker
+connects to an existing Vault cluster and can be used by multiple tenants within
+Cloud Foundry.
+
+[open-broker-api](https://openservicebrokerapi.org/)
 
 ## Getting Started
 
-The Cloud Foundry HashiCorp Vault Broker does not run a Vault server for you.
-There is an assumption that the Vault cluster is already setup and configured.
-This Vault server does not need to be running under Cloud Foundry, but it must
-be accessible from within Cloud Foundry or wherever the broker is deployed.
+The HashiCorp Vault Service Broker does not run a Vault server for you. There is
+an assumption that the Vault cluster is already setup and configured. This Vault
+server does not need to be running under Cloud Foundry, OpenShift, Kubernetes,
+etc, but it must be accessible from within those environments or wherever the
+broker is deployed.
 
 These getting started instructions assume the Vault server's address and token
 are specified as the following environment variables:
@@ -30,8 +34,8 @@ $ export AUTH_PASSWORD="broker-secret-password"
 ### Deploying the Broker
 
 The first step is deploying the broker. This broker can run anywhere including
-Cloud Foundry, Heroku, HashiCorp [Nomad][nomad], or your local laptop. This
-example shows running the broker under Cloud Foundry.
+Cloud Foundry, Kubernetes, Heroku, HashiCorp [Nomad][nomad], or your local
+laptop. This example shows running the broker under Cloud Foundry.
 
 First, create a space in which to run the broker:
 
@@ -48,7 +52,7 @@ $ cf target -s vault-broker
 Deploy the vault-broker by cloning this repository:
 
 ```shell
-$ git clone https://github.com/hashicorp/cf-vault-broker
+$ git clone https://github.com/hashicorp/vault-service-broker
 $ cd cf-vault-broker
 ```
 
@@ -79,7 +83,7 @@ Now that it's configured, start the broker:
 $ cf start vault-broker
 ```
 
-To verify the Cloud Foundry HashiCorp Vault broker is running, execute:
+To verify the HashiCorp Vault broker is running, execute:
 
 ```shell
 $ cf apps
@@ -94,7 +98,7 @@ Grab the URL and save it in a variable or copy it to your clipboard - we will ne
 export BROKER_URL=$(cf app vault-broker | grep -E -w 'urls:|routes:' | awk '{print $2}')
 ```
 
-NOTE: Different version of Cloud Foundry display this information differently. If
+NOTE: Different versions of Cloud Foundry display this information differently. If
 the result of the pipeline above is empty, try running `cf app vault-broker` and
 look at the output. It is possible that the key has changed again and you'll
 need to grep for that instead of `urls:` or `routes:`.
@@ -134,8 +138,8 @@ The result will be JSON that includes the list of plans for the broker:
 }
 ```
 
-The HashiCorp Vault Broker is now running under Cloud Foundry and ready to
-receive requests.
+The HashiCorp Vault Service Broker is now running under Cloud Foundry and ready
+to receive requests.
 
 ### Register the Vault Broker
 
@@ -204,9 +208,9 @@ You will need to restage the app to pick up the environment changes.
 $ cf restage my-app
 ```
 
-When the app starts back up, its `VCAP_SERVICES` environment variable
-will contain an entry for the my-vault service.  You can confirm this
-by checking the app's environment variables:
+When the app starts back up, its `VCAP_SERVICES` environment variable will
+contain an entry for the my-vault service.  You can confirm this by checking the
+app's environment variables:
 
 ```shell
 $ cf env my-app
@@ -269,8 +273,8 @@ The keys of the `credentials` section are as follows:
 
 ### Architecture and Assumptions
 
-To ease in setup and administration, the Cloud Foundry HashiCorp Vault Broker
-makes a few assumptions about the Vault setup including:
+To ease in setup and administration, the HashiCorp Vault Service Broker makes a
+few assumptions about the Vault setup including:
 
 - The Vault server is already running and is accessible by the broker.
 
@@ -409,7 +413,7 @@ Cloud Foundry Vault Broker will renew this periodic token automatically.
   ```
 
   Grab the value for "token" and store it somewhere safe for now - you will need
-  this when configuring the Cloud Foundry Vault Service Broker.
+  this when configuring the HashiCorp Vault Service Broker.
 
 ### Service Broker Configuration
 
