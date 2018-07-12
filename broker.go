@@ -267,7 +267,7 @@ func (b *Broker) Stop() error {
 	return nil
 }
 
-func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
+func (b *Broker) Services(ctx context.Context) ([]brokerapi.Service, error) {
 	b.log.Printf("[INFO] listing services")
 	return []brokerapi.Service{
 		brokerapi.Service{
@@ -286,7 +286,7 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // Provision is used to setup a new instance of Vault tenant. For each

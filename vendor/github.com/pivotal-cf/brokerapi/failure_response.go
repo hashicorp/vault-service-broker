@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"code.cloudfoundry.org/lager"
+	"errors"
 )
 
 // FailureResponse can be returned from any of the `ServiceBroker` interface methods
@@ -65,6 +66,17 @@ func (f *FailureResponse) ValidatedStatusCode(logger lager.Logger) int {
 // LoggerAction returns the loggerAction, used as the action when logging
 func (f *FailureResponse) LoggerAction() string {
 	return f.loggerAction
+}
+
+// AppendErrorMessage returns an error with the message updated. All other properties are preserved.
+func (f *FailureResponse) AppendErrorMessage(msg string) *FailureResponse {
+	return &FailureResponse{
+		error: errors.New(fmt.Sprintf("%s %s", f.Error(), msg)),
+		statusCode: f.statusCode,
+		loggerAction: f.loggerAction,
+		emptyResponse: f.emptyResponse,
+		errorKey: f.errorKey,
+	}
 }
 
 // FailureResponseBuilder provides a fluent set of methods to build a *FailureResponse.

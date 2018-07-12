@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/pivotal-cf/brokerapi.svg?branch=master)](https://travis-ci.org/pivotal-cf/brokerapi)
 
-A Go package for building [V2 Cloud Foundry Service Brokers](https://docs.cloudfoundry.org/services/api.html).
+A Go package for building [V2 Open Service Broker API](https://github.com/openservicebrokerapi/servicebroker/) compliant Service Brokers.
 
 ## [Docs](https://godoc.org/github.com/pivotal-cf/brokerapi)
 
@@ -11,6 +11,8 @@ A Go package for building [V2 Cloud Foundry Service Brokers](https://docs.cloudf
 - Go 1.7+
 - [lager](https://github.com/cloudfoundry/lager)
 - [gorilla/mux](https://github.com/gorilla/mux)
+
+We use [dep](https://github.com/golang/dep) to manager our dependencies. Use `dep ensure` in order to download the required packages.
 
 ## Usage
 

@@ -1,3 +1,18 @@
+// Copyright (C) 2015-Present Pivotal Software, Inc. All rights reserved.
+
+// This program and the accompanying materials are made available under
+// the terms of the under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+// http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package brokerapi
 
 import (
@@ -8,25 +23,37 @@ import (
 )
 
 type ServiceBroker interface {
-	Services(context context.Context) []Service
+	Services(ctx context.Context) ([]Service, error)
 
-	Provision(context context.Context, instanceID string, details ProvisionDetails, asyncAllowed bool) (ProvisionedServiceSpec, error)
-	Deprovision(context context.Context, instanceID string, details DeprovisionDetails, asyncAllowed bool) (DeprovisionServiceSpec, error)
+	Provision(ctx context.Context, instanceID string, details ProvisionDetails, asyncAllowed bool) (ProvisionedServiceSpec, error)
+	Deprovision(ctx context.Context, instanceID string, details DeprovisionDetails, asyncAllowed bool) (DeprovisionServiceSpec, error)
 
-	Bind(context context.Context, instanceID, bindingID string, details BindDetails) (Binding, error)
-	Unbind(context context.Context, instanceID, bindingID string, details UnbindDetails) error
+	Bind(ctx context.Context, instanceID, bindingID string, details BindDetails) (Binding, error)
+	Unbind(ctx context.Context, instanceID, bindingID string, details UnbindDetails) error
 
-	Update(context context.Context, instanceID string, details UpdateDetails, asyncAllowed bool) (UpdateServiceSpec, error)
+	Update(ctx context.Context, instanceID string, details UpdateDetails, asyncAllowed bool) (UpdateServiceSpec, error)
 
-	LastOperation(context context.Context, instanceID, operationData string) (LastOperation, error)
+	LastOperation(ctx context.Context, instanceID, operationData string) (LastOperation, error)
 }
 
 type DetailsWithRawParameters interface {
 	GetRawParameters() json.RawMessage
 }
 
+type DetailsWithRawContext interface {
+	GetRawContext() json.RawMessage
+}
+
+func (d ProvisionDetails) GetRawContext() json.RawMessage {
+	return d.RawContext
+}
+
 func (d ProvisionDetails) GetRawParameters() json.RawMessage {
 	return d.RawParameters
+}
+
+func (d BindDetails) GetRawContext() json.RawMessage {
+	return d.RawContext
 }
 
 func (d BindDetails) GetRawParameters() json.RawMessage {
@@ -42,6 +69,7 @@ type ProvisionDetails struct {
 	PlanID           string          `json:"plan_id"`
 	OrganizationGUID string          `json:"organization_guid"`
 	SpaceGUID        string          `json:"space_guid"`
+	RawContext       json.RawMessage `json:"context,omitempty"`
 	RawParameters    json.RawMessage `json:"parameters,omitempty"`
 }
 
@@ -56,12 +84,15 @@ type BindDetails struct {
 	PlanID        string          `json:"plan_id"`
 	ServiceID     string          `json:"service_id"`
 	BindResource  *BindResource   `json:"bind_resource,omitempty"`
+	RawContext    json.RawMessage `json:"context,omitempty"`
 	RawParameters json.RawMessage `json:"parameters,omitempty"`
 }
 
 type BindResource struct {
-	AppGuid string `json:"app_guid,omitempty"`
-	Route   string `json:"route,omitempty"`
+	AppGuid            string `json:"app_guid,omitempty"`
+	SpaceGuid          string `json:"space_guid,omitempty"`
+	Route              string `json:"route,omitempty"`
+	CredentialClientID string `json:"credential_client_id,omitempty"`
 }
 
 type UnbindDetails struct {
@@ -89,6 +120,7 @@ type UpdateDetails struct {
 	PlanID         string          `json:"plan_id"`
 	RawParameters  json.RawMessage `json:"parameters,omitempty"`
 	PreviousValues PreviousValues  `json:"previous_values"`
+	RawContext     json.RawMessage `json:"context,omitempty"`
 }
 
 type PreviousValues struct {

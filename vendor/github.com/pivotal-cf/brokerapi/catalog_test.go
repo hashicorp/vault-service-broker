@@ -1,7 +1,23 @@
+// Copyright (C) 2015-Present Pivotal Software, Inc. All rights reserved.
+
+// This program and the accompanying materials are made available under
+// the terms of the under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+// http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package brokerapi_test
 
 import (
 	"encoding/json"
+	"reflect"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -133,12 +149,53 @@ var _ = Describe("Catalog", func() {
 
 				Expect(json.Marshal(metadata)).To(MatchJSON(jsonString))
 			})
+
+			It("encodes the AdditionalMetadata fields in the metadata fields", func() {
+				metadata := brokerapi.ServicePlanMetadata{
+					Bullets:     []string{"hello", "its me"},
+					DisplayName: "name",
+					AdditionalMetadata: map[string]interface{}{
+						"foo": "bar",
+						"baz": 1,
+					},
+				}
+				jsonString := `{
+					"bullets":["hello", "its me"],
+					"displayName":"name",
+					"foo": "bar",
+					"baz": 1
+				}`
+
+				Expect(json.Marshal(metadata)).To(MatchJSON(jsonString))
+			})
+		})
+
+		Describe("JSON decoding", func() {
+			It("sets the AdditionalMetadata from unrecognized fields", func() {
+				metadata := brokerapi.ServicePlanMetadata{}
+				jsonString := `{"foo":["test"],"bar":"Some display name"}`
+
+				err := json.Unmarshal([]byte(jsonString), &metadata)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(metadata.AdditionalMetadata["foo"]).To(Equal([]interface{}{"test"}))
+				Expect(metadata.AdditionalMetadata["bar"]).To(Equal("Some display name"))
+			})
+
+			It("does not include convention fields into additional metadata", func() {
+				metadata := brokerapi.ServicePlanMetadata{}
+				jsonString := `{"bullets":["test"],"displayName":"Some display name", "costs": [{"amount": {"usd": 649.0},"unit": "MONTHLY"}]}`
+
+				err := json.Unmarshal([]byte(jsonString), &metadata)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(metadata.AdditionalMetadata).To(BeNil())
+			})
 		})
 	})
 
 	Describe("ServiceMetadata", func() {
 		Describe("JSON encoding", func() {
 			It("uses the correct keys", func() {
+				shareable := true
 				metadata := brokerapi.ServiceMetadata{
 					DisplayName:         "Cassandra",
 					LongDescription:     "A long description of Cassandra",
@@ -146,6 +203,7 @@ var _ = Describe("Catalog", func() {
 					SupportUrl:          "support",
 					ImageUrl:            "image",
 					ProviderDisplayName: "display",
+					Shareable:           &shareable,
 				}
 				jsonString := `{
 					"displayName":"Cassandra",
@@ -153,11 +211,69 @@ var _ = Describe("Catalog", func() {
 					"documentationUrl":"doc",
 					"supportUrl":"support",
 					"imageUrl":"image",
-					"providerDisplayName":"display"
+					"providerDisplayName":"display",
+					"shareable":true
+				}`
+
+				Expect(json.Marshal(metadata)).To(MatchJSON(jsonString))
+			})
+
+			It("encodes the AdditionalMetadata fields in the metadata fields", func() {
+				metadata := brokerapi.ServiceMetadata{
+					DisplayName: "name",
+					AdditionalMetadata: map[string]interface{}{
+						"foo": "bar",
+						"baz": 1,
+					},
+				}
+				jsonString := `{
+					"displayName":"name",
+					"foo": "bar",
+					"baz": 1
 				}`
 
 				Expect(json.Marshal(metadata)).To(MatchJSON(jsonString))
 			})
 		})
+
+		Describe("JSON decoding", func() {
+			It("sets the AdditionalMetadata from unrecognized fields", func() {
+				metadata := brokerapi.ServiceMetadata{}
+				jsonString := `{"foo":["test"],"bar":"Some display name"}`
+
+				err := json.Unmarshal([]byte(jsonString), &metadata)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(metadata.AdditionalMetadata["foo"]).To(Equal([]interface{}{"test"}))
+				Expect(metadata.AdditionalMetadata["bar"]).To(Equal("Some display name"))
+			})
+
+			It("does not include convention fields into additional metadata", func() {
+				metadata := brokerapi.ServiceMetadata{}
+				jsonString := `{
+					"displayName":"Cassandra",
+					"longDescription":"A long description of Cassandra",
+					"documentationUrl":"doc",
+					"supportUrl":"support",
+					"imageUrl":"image",
+					"providerDisplayName":"display",
+					"shareable":true
+				}`
+				err := json.Unmarshal([]byte(jsonString), &metadata)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(metadata.AdditionalMetadata).To(BeNil())
+			})
+		})
+	})
+
+	It("Reflects JSON names from struct", func() {
+		type Example1 struct {
+			Foo int    `json:"foo"`
+			Bar string `yaml:"hello" json:"bar,omitempty"`
+			Qux float64
+		}
+
+		s := Example1{}
+		Expect(brokerapi.GetJsonNames(reflect.ValueOf(&s).Elem())).To(
+			ConsistOf([]string{"foo", "bar", "Qux"}))
 	})
 })

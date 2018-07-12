@@ -1,4 +1,25 @@
+// Copyright (C) 2015-Present Pivotal Software, Inc. All rights reserved.
+
+// This program and the accompanying materials are made available under
+// the terms of the under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+// http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package brokerapi
+
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+)
 
 type Service struct {
 	ID              string                  `json:"id"`
@@ -26,12 +47,32 @@ type ServicePlan struct {
 	Free        *bool                `json:"free,omitempty"`
 	Bindable    *bool                `json:"bindable,omitempty"`
 	Metadata    *ServicePlanMetadata `json:"metadata,omitempty"`
+	Schemas     *ServiceSchemas      `json:"schemas,omitempty"`
+}
+
+type ServiceSchemas struct {
+	Instance ServiceInstanceSchema `json:"service_instance,omitempty"`
+	Binding  ServiceBindingSchema  `json:"service_binding,omitempty"`
+}
+
+type ServiceInstanceSchema struct {
+	Create Schema `json:"create,omitempty"`
+	Update Schema `json:"update,omitempty"`
+}
+
+type ServiceBindingSchema struct {
+	Create Schema `json:"create,omitempty"`
+}
+
+type Schema struct {
+	Parameters map[string]interface{} `json:"parameters"`
 }
 
 type ServicePlanMetadata struct {
-	DisplayName string            `json:"displayName,omitempty"`
-	Bullets     []string          `json:"bullets,omitempty"`
-	Costs       []ServicePlanCost `json:"costs,omitempty"`
+	DisplayName        string            `json:"displayName,omitempty"`
+	Bullets            []string          `json:"bullets,omitempty"`
+	Costs              []ServicePlanCost `json:"costs,omitempty"`
+	AdditionalMetadata map[string]interface{}
 }
 
 type ServicePlanCost struct {
@@ -46,6 +87,8 @@ type ServiceMetadata struct {
 	ProviderDisplayName string `json:"providerDisplayName,omitempty"`
 	DocumentationUrl    string `json:"documentationUrl,omitempty"`
 	SupportUrl          string `json:"supportUrl,omitempty"`
+	Shareable           *bool  `json:"shareable,omitempty"`
+	AdditionalMetadata  map[string]interface{}
 }
 
 func FreeValue(v bool) *bool {
@@ -62,4 +105,96 @@ const (
 	PermissionRouteForwarding = RequiredPermission("route_forwarding")
 	PermissionSyslogDrain     = RequiredPermission("syslog_drain")
 	PermissionVolumeMount     = RequiredPermission("volume_mount")
+
+	additionalMetadataName = "AdditionalMetadata"
 )
+
+func (spm ServicePlanMetadata) MarshalJSON() ([]byte, error) {
+	type Alias ServicePlanMetadata
+
+	b, _ := json.Marshal(Alias(spm))
+	m := spm.AdditionalMetadata
+	json.Unmarshal(b, &m)
+	delete(m, additionalMetadataName)
+
+	return json.Marshal(m)
+}
+
+func (spm *ServicePlanMetadata) UnmarshalJSON(data []byte) error {
+	type Alias ServicePlanMetadata
+
+	if err := json.Unmarshal(data, (*Alias)(spm)); err != nil {
+		return err
+	}
+
+	additionalMetadata := map[string]interface{}{}
+	if err := json.Unmarshal(data, &additionalMetadata); err != nil {
+		return err
+	}
+
+	s := reflect.ValueOf(spm).Elem()
+	for _, jsonName := range GetJsonNames(s) {
+		if jsonName == additionalMetadataName {
+			continue
+		}
+		delete(additionalMetadata, jsonName)
+	}
+
+	if len(additionalMetadata) > 0 {
+		spm.AdditionalMetadata = additionalMetadata
+	}
+	return nil
+}
+
+func GetJsonNames(s reflect.Value) (res []string) {
+	valType := s.Type()
+	for i := 0; i < s.NumField(); i++ {
+		field := valType.Field(i)
+		tag := field.Tag
+		jsonVal := tag.Get("json")
+		if jsonVal != "" {
+			components := strings.Split(jsonVal, ",")
+			jsonName := components[0]
+			res = append(res, jsonName)
+		} else {
+			res = append(res, field.Name)
+		}
+	}
+	return res
+}
+
+func (sm ServiceMetadata) MarshalJSON() ([]byte, error) {
+	type Alias ServiceMetadata
+
+	b, _ := json.Marshal(Alias(sm))
+	m := sm.AdditionalMetadata
+	json.Unmarshal(b, &m)
+	delete(m, additionalMetadataName)
+
+	return json.Marshal(m)
+}
+
+func (sm *ServiceMetadata) UnmarshalJSON(data []byte) error {
+	type Alias ServiceMetadata
+
+	if err := json.Unmarshal(data, (*Alias)(sm)); err != nil {
+		return err
+	}
+
+	additionalMetadata := map[string]interface{}{}
+	if err := json.Unmarshal(data, &additionalMetadata); err != nil {
+		return err
+	}
+
+	for _, jsonName := range GetJsonNames(reflect.ValueOf(sm).Elem()) {
+		if jsonName == additionalMetadataName {
+			continue
+		}
+		delete(additionalMetadata, jsonName)
+	}
+
+	if len(additionalMetadata) > 0 {
+		sm.AdditionalMetadata = additionalMetadata
+	}
+	return nil
+}
