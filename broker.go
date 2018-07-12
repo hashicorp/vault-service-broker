@@ -49,6 +49,9 @@ type Broker struct {
 	serviceDescription string
 	serviceTags        []string
 
+	// Store Metadata
+	metadata *brokerapi.ServiceMetadata
+
 	// plan-specific customization
 	planName        string
 	planDescription string
@@ -277,6 +280,7 @@ func (b *Broker) Services(ctx context.Context) ([]brokerapi.Service, error) {
 			Tags:          b.serviceTags,
 			Bindable:      true,
 			PlanUpdatable: false,
+			Metadata:      b.metadata,
 			Plans: []brokerapi.ServicePlan{
 				brokerapi.ServicePlan{
 					ID:          fmt.Sprintf("%s.%s", b.serviceID, b.planName),

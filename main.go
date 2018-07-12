@@ -37,6 +37,9 @@ const (
 
 	// DefaultPlanDescription is the default description.
 	DefaultPlanDescription = "Secure access to Vault's storage and transit backends"
+
+	//DefaultShareable is the default configuration for the service metadata.
+	DefaultShareable = true
 )
 
 func main() {
@@ -54,6 +57,11 @@ func main() {
 		log.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
 	}
 
+	// Get a custom Shareable
+	shareable, parseErr := strconv.ParseBool(os.Getenv("SHAREABLE"))
+	if parseErr != nil {
+		shareable = DefaultShareable
+	}
 	// Get a custom GUID
 	serviceID := os.Getenv("SERVICE_ID")
 	if serviceID == "" {
@@ -146,6 +154,8 @@ func main() {
 
 		vaultAdvertiseAddr: vaultAdvertiseAddr,
 		vaultRenewToken:    renew,
+
+		metadata: &brokerapi.ServiceMetadata{Shareable: &shareable},
 	}
 	if err := broker.Start(); err != nil {
 		log.Fatalf("[ERR] failed to start broker: %s", err)
