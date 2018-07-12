@@ -155,7 +155,7 @@ func main() {
 		vaultAdvertiseAddr: vaultAdvertiseAddr,
 		vaultRenewToken:    renew,
 
-		metadata: &brokerapi.ServiceMetadata{Shareable: &shareable},
+		Metadata: &brokerapi.ServiceMetadata{Shareable: &shareable},
 	}
 	if err := broker.Start(); err != nil {
 		log.Fatalf("[ERR] failed to start broker: %s", err)
