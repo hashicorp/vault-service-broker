@@ -42,16 +42,16 @@ const (
 func main() {
 	// Setup the logger - intentionally do not log date or time because it will
 	// be prefixed in the log output by CF.
-	log := log.New(os.Stdout, "", 0)
+	logger := log.New(os.Stdout, "", 0)
 
 	// Ensure username and password are present
 	username := os.Getenv("SECURITY_USER_NAME")
 	if username == "" {
-		log.Fatal("[ERR] missing SECURITY_USER_NAME")
+		logger.Fatal("[ERR] missing SECURITY_USER_NAME")
 	}
 	password := os.Getenv("SECURITY_USER_PASSWORD")
 	if password == "" {
-		log.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
+		logger.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
 	}
 
 	// Get a custom GUID
@@ -100,7 +100,7 @@ func main() {
 	// Check for vault address
 	vaultAddr := os.Getenv("VAULT_ADDR")
 	if vaultAddr == "" {
-		vaultAddr = "https://127.0.0.1:8200"
+		vaultAddr = DefaultVaultAddr
 	}
 	os.Setenv("VAULT_ADDR", normalizeAddr(vaultAddr))
 
@@ -115,25 +115,25 @@ func main() {
 	if s := os.Getenv("VAULT_RENEW"); s != "" {
 		b, err := strconv.ParseBool(s)
 		if err != nil {
-			log.Fatalf("[ERR] failed to parse VAULT_RENEW: %s", err)
+			logger.Fatalf("[ERR] failed to parse VAULT_RENEW: %s", err)
 		}
 		renew = b
 	}
 
 	// Check for vault token
 	if v := os.Getenv("VAULT_TOKEN"); v == "" {
-		log.Fatal("[ERR] missing VAULT_TOKEN")
+		logger.Fatal("[ERR] missing VAULT_TOKEN")
 	}
 
 	// Setup the vault client
 	client, err := api.NewClient(nil)
 	if err != nil {
-		log.Fatal("[ERR] failed to create api client", err)
+		logger.Fatal("[ERR] failed to create api client", err)
 	}
 
 	// Setup the broker
 	broker := &Broker{
-		log:    log,
+		log:    logger,
 		client: client,
 
 		serviceID:          serviceID,
@@ -148,7 +148,7 @@ func main() {
 		vaultRenewToken:    renew,
 	}
 	if err := broker.Start(); err != nil {
-		log.Fatalf("[ERR] failed to start broker: %s", err)
+		logger.Fatalf("[ERR] failed to start broker: %s", err)
 	}
 
 	// Parse the broker credentials
@@ -163,9 +163,9 @@ func main() {
 	// Listen to incoming connection
 	serverCh := make(chan struct{}, 1)
 	go func() {
-		log.Printf("[INFO] starting server on %s", port)
+		logger.Printf("[INFO] starting server on %s", port)
 		if err := http.ListenAndServe(port, handler); err != nil {
-			log.Fatalf("[ERR] server exited with: %s", err)
+			logger.Fatalf("[ERR] server exited with: %s", err)
 		}
 		close(serverCh)
 	}()
@@ -176,11 +176,11 @@ func main() {
 	select {
 	case <-serverCh:
 	case s := <-signalCh:
-		log.Printf("[INFO] received signal %s", s)
+		logger.Printf("[INFO] received signal %s", s)
 	}
 
 	if err := broker.Stop(); err != nil {
-		log.Fatalf("[ERR] faild to stop broker: %s", err)
+		logger.Fatalf("[ERR] faild to stop broker: %s", err)
 	}
 
 	os.Exit(0)
