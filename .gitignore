@@ -12,3 +12,6 @@
 
 # Output of packages
 /pkg
+
+# Jetbrains IDE
+.idea*
