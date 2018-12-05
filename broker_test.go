@@ -15,75 +15,64 @@ import (
 	"github.com/pivotal-cf/brokerapi"
 )
 
-type Environment struct {
-	Context          context.Context
-	Broker           *Broker
-	InstanceID       string
-	BindingID        string
-	SpaceGUID        string
-	OrganizationGUID string
-	Async            bool
-}
-
-func TestBroker(t *testing.T) {
+func TestBroker_Start_Stop(t *testing.T) {
 	env, closer := defaultEnvironment(t)
 	defer closer()
 
-	t.Run("TestBroker_Start", env.TestBroker_Start)
-	t.Run("TestBroker_Services", env.TestBroker_Services)
-	t.Run("TestBroker_Provision", env.TestBroker_Provision)
-	t.Run("TestBroker_Bind", env.TestBroker_Bind)
-	t.Run("TestBroker_Unbind", env.TestBroker_Unbind)
-	t.Run("TestBroker_Deprovision", env.TestBroker_Deprovision)
-	t.Run("TestBroker_Update", env.TestBroker_Update)
-	t.Run("TestBroker_LastOperation", env.TestBroker_LastOperation)
-	t.Run("TestBroker_Stop", env.TestBroker_Stop)
-}
-
-func (env *Environment) TestBroker_Start(t *testing.T) {
 	if err := env.Broker.Start(); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func (env *Environment) TestBroker_Stop(t *testing.T) {
 	if err := env.Broker.Stop(); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (env *Environment) TestBroker_Services(t *testing.T) {
+func TestBroker_Services(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
 	services := env.Broker.Services(env.Context)
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service but received %d", len(services))
 	}
 }
 
-func (env *Environment) TestBroker_Provision(t *testing.T) {
+func TestBroker_Provision_Deprovision(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
 	details := brokerapi.ProvisionDetails{
 		SpaceGUID:        env.SpaceGUID,
 		OrganizationGUID: env.OrganizationGUID,
 	}
-	spec, err := env.Broker.Provision(env.Context, env.InstanceID, details, env.Async)
+	provSpec, err := env.Broker.Provision(env.Context, env.InstanceID, details, env.Async)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(spec, brokerapi.ProvisionedServiceSpec{}) {
-		t.Fatalf("%+v differs from %+v", spec, brokerapi.ProvisionedServiceSpec{})
+	if !reflect.DeepEqual(provSpec, brokerapi.ProvisionedServiceSpec{}) {
+		t.Fatalf("%+v differs from %+v", provSpec, brokerapi.ProvisionedServiceSpec{})
 	}
-}
 
-func (env *Environment) TestBroker_Deprovision(t *testing.T) {
-	spec, err := env.Broker.Deprovision(env.Context, env.InstanceID, brokerapi.DeprovisionDetails{}, env.Async)
+	deProvSpec, err := env.Broker.Deprovision(env.Context, env.InstanceID, brokerapi.DeprovisionDetails{}, env.Async)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(spec, brokerapi.DeprovisionServiceSpec{}) {
-		t.Fatalf("%+v differs from %+v", spec, brokerapi.DeprovisionServiceSpec{})
+	if !reflect.DeepEqual(deProvSpec, brokerapi.DeprovisionServiceSpec{}) {
+		t.Fatalf("%+v differs from %+v", deProvSpec, brokerapi.DeprovisionServiceSpec{})
 	}
 }
 
-func (env *Environment) TestBroker_Bind(t *testing.T) {
+func TestBroker_Bind_Unbind(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
+	// Seed the broker with the results of provisioning an instance
+	// so binding can succeed.
+	env.Broker.instances["instance-id"] = &instanceInfo{
+		SpaceGUID:        "space-guid",
+		OrganizationGUID: "organization-guid",
+	}
+
 	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{})
 	if err != nil {
 		t.Fatal(err)
@@ -115,15 +104,16 @@ func (env *Environment) TestBroker_Bind(t *testing.T) {
 	if sharedMap["space"] != "cf/space-guid/secret" {
 		t.Fatalf("expected cf/space-guid/secret but received %s", sharedMap["space"])
 	}
-}
 
-func (env *Environment) TestBroker_Unbind(t *testing.T) {
 	if err := env.Broker.Unbind(env.Context, env.InstanceID, env.BindingID, brokerapi.UnbindDetails{}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (env *Environment) TestBroker_Update(t *testing.T) {
+func TestBroker_Update(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
 	spec, err := env.Broker.Update(env.Context, env.InstanceID, brokerapi.UpdateDetails{}, env.Async)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +123,10 @@ func (env *Environment) TestBroker_Update(t *testing.T) {
 	}
 }
 
-func (env *Environment) TestBroker_LastOperation(t *testing.T) {
+func TestBroker_LastOperation(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
 	lastOperation, err := env.Broker.LastOperation(env.Context, env.InstanceID, "")
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +134,16 @@ func (env *Environment) TestBroker_LastOperation(t *testing.T) {
 	if !reflect.DeepEqual(lastOperation, brokerapi.LastOperation{}) {
 		t.Fatalf("%+v differs from %+v", lastOperation, brokerapi.LastOperation{})
 	}
+}
+
+type Environment struct {
+	Context          context.Context
+	Broker           *Broker
+	InstanceID       string
+	BindingID        string
+	SpaceGUID        string
+	OrganizationGUID string
+	Async            bool
 }
 
 func defaultEnvironment(t *testing.T) (*Environment, func()) {
@@ -378,6 +381,8 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			planDescription:    DefaultPlanDescription,
 			vaultAdvertiseAddr: DefaultVaultAddr,
 			vaultRenewToken:    true,
+			instances:          make(map[string]*instanceInfo),
+			binds:              make(map[string]*bindingInfo),
 		},
 		InstanceID:       "instance-id",
 		BindingID:        "binding-id",
