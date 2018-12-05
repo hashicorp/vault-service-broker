@@ -270,7 +270,7 @@ func (b *Broker) Stop() error {
 func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 	b.log.Printf("[INFO] listing services")
 	return []brokerapi.Service{
-		brokerapi.Service{
+		{
 			ID:            b.serviceID,
 			Name:          b.serviceName,
 			Description:   b.serviceDescription,
@@ -278,7 +278,7 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 			Bindable:      true,
 			PlanUpdatable: false,
 			Plans: []brokerapi.ServicePlan{
-				brokerapi.ServicePlan{
+				{
 					ID:          fmt.Sprintf("%s.%s", b.serviceID, b.planName),
 					Name:        b.planName,
 					Description: b.planDescription,
