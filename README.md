@@ -31,6 +31,19 @@ $ export AUTH_USERNAME="vault"
 $ export AUTH_PASSWORD="broker-secret-password"
 ```
 
+### Creating a Dev Environment
+
+Note: This section takes a good amount of time (likely, an hour or more) due to downloading a 16gb ISO and VirtualBox taking a while to create an environment.
+
+1. Register for an account at `https://pivotal.io`.
+2. Install the `cf` CLI: https://docs.cloudfoundry.org/cf-cli/install-go-cli.html.
+3. Ensure you have VirtualBox and Java 7 installed.
+4. Ensure you have ~30gb of disk storage available in your local environment for the VirtualBox ISO and env `cf` will create.
+5. Go through installation and configuration of `cf` thru the page on the `cf login` step here: https://pivotal.io/platform/pcf-tutorials/getting-started-with-pivotal-cloud-foundry-dev/introduction. Ignore the sample app steps regarding a Spring app.
+6. Note that when logging in following the example, the username is literally `user` and the password is literally `pass`, not the username and password you created during registration.
+7. Run Vault locally: `$ vault server -dev`. Use the Vault token returned as the `VAULT_TOKEN` value exported above.
+8. Make Vault reachable to our container using ngrok (https://ngrok.com/): `$ ngrok http 8200`. Use the http URL shown as the `VAULT_ADDR` value exported above (example value: "http://4d4053a3.ngrok.io").
+
 ### Deploying the Broker
 
 The first step is deploying the broker. This broker can run anywhere including
@@ -53,7 +66,7 @@ Deploy the vault-broker by cloning this repository:
 
 ```shell
 $ git clone https://github.com/hashicorp/vault-service-broker
-$ cd cf-vault-broker
+$ cd vault-service-broker
 ```
 
 And push to Cloud Foundry:
@@ -75,6 +88,7 @@ $ cf set-env vault-broker VAULT_ADDR "$VAULT_ADDR"
 $ cf set-env vault-broker VAULT_TOKEN "$VAULT_TOKEN"
 $ cf set-env vault-broker SECURITY_USER_NAME "$AUTH_USERNAME"
 $ cf set-env vault-broker SECURITY_USER_PASSWORD "$AUTH_PASSWORD"
+$ cf restage vault-broker
 ```
 
 Now that it's configured, start the broker:
