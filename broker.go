@@ -697,9 +697,19 @@ func (b *Broker) renewAuth(token, accessor string, stopCh <-chan struct{}) {
 func (b *Broker) renewVaultToken() {
 	// We would like to use lookup-self here, but that does not include the auth
 	// data we need back...
-	secret, err := b.client.Auth().Token().RenewSelf(0)
+	secret, err := b.client.Auth().Token().LookupSelf()
 	if err != nil {
 		b.log.Printf("[ERR] renew-token: failed to lookup client vault token: %s", err)
+		return
+	}
+	if expireTime, ok := secret.Data["expire_time"]; ok && expireTime == nil {
+		b.log.Printf("[INFO] renew-token: vault token will never expire so doesn't need to be renewed, stopping renewal process")
+		return
+	}
+
+	secret, err = b.client.Auth().Token().RenewSelf(0)
+	if err != nil {
+		b.log.Printf("[ERR] renew-token: failed to renew client vault token: %s", err)
 		return
 	}
 	if secret.Auth == nil {
