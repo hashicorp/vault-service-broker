@@ -351,11 +351,43 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			w.WriteHeader(204)
 			return
 
+		case reqURL == "/v1/auth/token/lookup-self" && r.Method == "GET":
+			w.WriteHeader(200)
+			w.Write([]byte(`{
+				"data": {
+					"accessor": "8609694a-cdbc-db9b-d345-e782dbb562ed",
+					"creation_time": 1523979354,
+					"creation_ttl": 2764800,
+					"display_name": "ldap2-tesla",
+					"entity_id": "7d2e3179-f69b-450c-7179-ac8ee8bd8ca9",
+					"expire_time": null,
+					"explicit_max_ttl": 0,
+					"id": "cf64a70f-3a12-3f6c-791d-6cef6d390eed",
+					"identity_policies": [
+						"dev-group-policy"
+					],
+					"issue_time": "2018-04-17T11:35:54.466476078-04:00",
+					"meta": {
+						"username": "tesla"
+					},
+					"num_uses": 0,
+					"orphan": true,
+					"path": "auth/ldap2/login/tesla",
+					"policies": [
+						"default",
+						"testgroup2-policy"
+					],
+					"renewable": true,
+					"ttl": 2764790
+				}
+			}`))
+			return
+
 		default:
 			// Some call was received that's not implemented here.
 			w.WriteHeader(400)
 			b, _ := json.Marshal(r)
-			w.Write([]byte(fmt.Sprintf(`{"not_implemented": %s"}`, b)))
+			w.Write([]byte(fmt.Sprintf(`{"not_implemented": "%s"}`, b)))
 			return
 		}
 	}))
