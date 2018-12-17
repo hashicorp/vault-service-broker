@@ -32,11 +32,38 @@ const (
 	// DefaultServiceDescription is the default service description.
 	DefaultServiceDescription = "HashiCorp Vault Service Broker"
 
-	// DefaultPlanName is the name of our plan, only one supported
+	// DefaultPlanName is the name of our plan, only one is currently supported
 	DefaultPlanName = "shared"
 
 	// DefaultPlanDescription is the default description.
 	DefaultPlanDescription = "Secure access to Vault's storage and transit backends"
+
+	//DefaultDisplayName is the default name of the service to be displayed in graphical clients.
+	DefaultDisplayName = "Vault for PCF"
+
+	//DefaultImageUrl is the default URL to an image.
+	DefaultImageUrl = "data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEABAMAAACuXLVVAAAAJ1BMVEVHcEwVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUPAUIJAAAADHRSTlMAYOgXdQi7SS72ldNTKM7gAAAE00lEQVR42u3dvUscQRQA8JFzuSvlIJVpDBIhXGFlcZUYDFx3gmkskyIWV0iKpNjmqmvSpolsJwEPbEyjxTU5grD6/qgUfu3u7M7XvvcmgffKBZ0fem92dvbmPaUkJCQkJP7HSOovb7ON/67++psxEyC9qb8+2OAZfwZNALjiGH+YNQPyj/TjHwygGQD5PvX43QWYALBcox2/NwEzAG6mlON3RmADwC3ldNAHOwC+jwkT0AVAl4xDcAPAMc34h5krAH6SJaAjYLlPlYCOALg7QU/AOfgA8KeDPfAD5Ke4yZiCJwAA9d68A/4A+IQ3/lEWAoAzrPFXqr/ZEYB1b+4tIAwAv3ES8AKiApIRxAWsQ1zADOIChllcwOEAogK6C4gKKN6BYwCSOSABemEL5T5gAVaDFsop4AFgKyABc0yA/0L5MANUgO+9eWUAyIDlLkoChgO8Fso1d+D2AI+FcrIHFAA43W6fgK0ArgvlGVAB4Dr8DlyK41CAy3RgTkDjgt8B8GM/9A5ciMb9BweAdROrM7GOvzluA7AkY90SuBKGXHICmDex+tbxTT/uBjD8CV0S0PQHdAQ0f4iG1vHN87kroCkZO9YEtHyEnQF5/f+xYx3fksTOAAgD5LY1BTXgXMUF2KdxWoDDBjApYGMcF+D0ZEEIcHsJQQdwXE6SAVwX1FSAO20C7rIC9Am4+4sToE/AvcmSE3Be8+aAE3Bct2/CCLiqXbXxAfQJOAVOgD4B368auQD6Cvxh1coF2G16c8IFWGvauI0EeH5sjQMoPLZGART3rWIAesV9qwiA0qvjCIDKvhk/oPLmih3wBeICdiAy4KUABCAAAQhAAAIQgAA0wPva4AO4hgAEIAABCEAAAhCAAAQgAAEIQAACEIAA6PaIvtaGbNMJQAACEIAABCAAAfx7gOvIgKcTnpEAz99KjgMofCs5CuB2qqICSsdSIgDKx1L4AcsXKipg+VbFBVSPpXADtGMhzADtYLZezoMUcKmNr1cToATop4o/AydAPxbyDTgBxQn4PmoPU5MB9HOB9dUMqAD6ucCGciZEgFe71StN1RSIAPq5wAWwAqrRXE6FB2Co5sACaK6nxAMwlnPhABirSTAAzOVk6AGWahbkAFs1C2rAURYXsDqAqICVBYQBtKVDGKA7sY6/5Zi7QYDSucD6aK6mUJk9QwCduXV8UzWF8v0rAGCtp2WrZlC6g/sDknXr+LaKSMWajP4Aaz0vh1rKhVWkN8BeTih3qIo1CwbYywm51dNO0bbptDAUYyp+kkZUANfacI+18bAB7tXxHpIRGeBTH/D+gQIX4Fe9+ChDB3jWiNzBBlwrz0hxAf41vJM+JuDPtjdAdeZ4gJuA8ZXqTbEAbSvZtwVUNm75Aa27GbQEtO/n0A6A0NGiFQCjp0cbAEpXkxYAnEYO4QCkzjbBAKz+AcFFMNA6KKRhALyWMkk/BIDZRaPyyOn76hYhyk+tLgDsTiqlp1YHAH4vmeJTqx1A0U1n6AM4wx9fjWfuAJqOSs/JaANcKpp42kKyAOi6aj0moxlA2VfsIRmNgLupIoyDgQ1A3VtumJkB+ZkijpkZwNBfMDUBODosJqNmwKbiiM5FE4C0sV9xOvhQf/31lGd8lTTUqj1REhISEhISAfEXumiA5AUel8MAAAAASUVORK5CYII="
+
+	//DefaultImageUrl is the default Long description.
+	DefaultLongDescription = "The official HashiCorp Vault broker integration to the Open Service Broker API. This service broker provides support for secure secret storage and encryption-as-a-service to HashiCorp Vault."
+
+	//DefaultProviderDisplayName is the default name of the upstream entity providing the actual service.
+	DefaultProviderDisplayName = "HashiCorp"
+
+	//DefaultDocumentationUrl is the default link to documentation page for the service.
+	DefaultDocumentationUrl = "https://www.vaultproject.io/"
+
+	//DefaultSupportUrl is the default link to support page for the service.
+	DefaultSupportUrl = "https://support.hashicorp.com/"
+
+	//DefaultSupportUrl is the default link to support page for the service.
+	DefaultPlanMetadataName = "Architecture and Assumptions"
+
+	//DefaultPlanBulletsString are the default bullets to add to the plan
+	DefaultPlanBulletsString = "The Vault server is already running and is accessible by the broker;" +
+		"The Vault server may be used by other applications (it is not exclusively tied to Cloud Foundry).;" +
+		"All instances of an application will share a token. This goes against the recommended Vault usage, but this is a limitation of the Cloud Foundry service broker model.;" +
+		"Any Vault operations performed outside of Cloud Foundry will require users to rebind their instances."
 )
 
 func main() {
@@ -86,6 +113,55 @@ func main() {
 	if planDescription == "" {
 		planDescription = DefaultPlanDescription
 	}
+
+	// Get the display name
+	displayName := os.Getenv("DISPLAY_NAME")
+	if displayName == "" {
+		displayName = DefaultDisplayName
+	}
+
+	// Get the image url
+	imageUrl := os.Getenv("IMAGE_URL")
+	if imageUrl == "" {
+		imageUrl = DefaultImageUrl
+	}
+
+	// Get the image url
+	longDescription := os.Getenv("LONG_DESCRIPTION")
+	if longDescription == "" {
+		longDescription = DefaultLongDescription
+	}
+
+	// Get the provider display name
+	providerDisplayName := os.Getenv("PROVIDER_DISPLAY_NAME")
+	if providerDisplayName == "" {
+		providerDisplayName = DefaultProviderDisplayName
+	}
+
+	// Get the documentation url
+	documentationUrl := os.Getenv("DOCUMENTATION_URL")
+	if documentationUrl == "" {
+		documentationUrl = DefaultDocumentationUrl
+	}
+
+	// Get the support url
+	supportUrl := os.Getenv("SUPPORT_URL")
+	if supportUrl == "" {
+		supportUrl = DefaultSupportUrl
+	}
+
+	// Get the plan name metadata
+	planMetadataName := os.Getenv("PLAN_METADATA_NAME")
+	if planMetadataName == "" {
+		planMetadataName = DefaultPlanMetadataName
+	}
+
+	// Get the service bullets
+	planBulletsString := os.Getenv("PLAN_BULLETS")
+	if planBulletsString == "" {
+		planBulletsString = DefaultPlanBulletsString
+	}
+	planBullets := strings.Split(planBulletsString, ";")
 
 	// Parse the port
 	port := os.Getenv("PORT")
@@ -141,8 +217,17 @@ func main() {
 		serviceDescription: serviceDescription,
 		serviceTags:        serviceTags,
 
-		planName:        planName,
-		planDescription: planDescription,
+		planName:         planName,
+		planDescription:  planDescription,
+		planMetadataName: planMetadataName,
+		planBullets:      planBullets,
+
+		displayName:         displayName,
+		imageUrl:            imageUrl,
+		longDescription:     longDescription,
+		providerDisplayName: providerDisplayName,
+		documentationUrl:    documentationUrl,
+		supportUrl:          supportUrl,
 
 		vaultAdvertiseAddr: vaultAdvertiseAddr,
 		vaultRenewToken:    renew,
