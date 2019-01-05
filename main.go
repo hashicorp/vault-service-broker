@@ -130,6 +130,12 @@ func main() {
 	if err != nil {
 		logger.Fatal("[ERR] failed to create api client", err)
 	}
+	
+	// Check for vault namespace
+	namespace := os.Getenv("VAULT_NAMESPACE")
+	if len(namespace) > 0 {
+		client.SetNamespace(namespace)
+	}
 
 	// Setup the broker
 	broker := &Broker{
