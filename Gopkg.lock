@@ -65,7 +65,7 @@
   branch = "master"
   name = "github.com/hashicorp/vault"
   packages = ["api","helper/compressutil","helper/jsonutil","helper/parseutil"]
-  revision = "5e4ba4a7b67fc382c3bc75c6255806b381c00235"
+  version = "v1.0.1"
 
 [[projects]]
   branch = "master"
