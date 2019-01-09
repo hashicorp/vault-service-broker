@@ -1,42 +1,19 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/hashicorp/vault/api"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/pivotal-cf/brokerapi"
-)
-
-const (
-	// DefaultListenAddr is the default address unless we get
-	// an override via PORT
-	DefaultListenAddr = ":8000"
-
-	// DefaultServiceID is the default UUID of the services
-	DefaultServiceID = "0654695e-0760-a1d4-1cad-5dd87b75ed99"
-
-	// DefaultVaultAddr is the default address to the Vault cluster.
-	DefaultVaultAddr = "https://127.0.0.1:8200"
-
-	// DefaultServiceName is the name of the service in the marketplace
-	DefaultServiceName = "hashicorp-vault"
-
-	// DefaultServiceDescription is the default service description.
-	DefaultServiceDescription = "HashiCorp Vault Service Broker"
-
-	// DefaultPlanName is the name of our plan, only one supported
-	DefaultPlanName = "shared"
-
-	// DefaultPlanDescription is the default description.
-	DefaultPlanDescription = "Secure access to Vault's storage and transit backends"
 )
 
 func main() {
@@ -44,85 +21,9 @@ func main() {
 	// be prefixed in the log output by CF.
 	logger := log.New(os.Stdout, "", 0)
 
-	// Ensure username and password are present
-	username := os.Getenv("SECURITY_USER_NAME")
-	if username == "" {
-		logger.Fatal("[ERR] missing SECURITY_USER_NAME")
-	}
-	password := os.Getenv("SECURITY_USER_PASSWORD")
-	if password == "" {
-		logger.Fatal("[ERR] missing SECURITY_USER_PASSWORD")
-	}
-
-	// Get a custom GUID
-	serviceID := os.Getenv("SERVICE_ID")
-	if serviceID == "" {
-		serviceID = DefaultServiceID
-	}
-
-	// Get the service name
-	serviceName := os.Getenv("SERVICE_NAME")
-	if serviceName == "" {
-		serviceName = DefaultServiceName
-	}
-
-	// Get the service description
-	serviceDescription := os.Getenv("SERVICE_DESCRIPTION")
-	if serviceDescription == "" {
-		serviceDescription = DefaultServiceDescription
-	}
-
-	// Get the service tags
-	serviceTags := strings.Split(os.Getenv("SERVICE_TAGS"), ",")
-
-	// Get the plan name
-	planName := os.Getenv("PLAN_NAME")
-	if planName == "" {
-		planName = DefaultPlanName
-	}
-
-	// Get the plan description
-	planDescription := os.Getenv("PLAN_DESCRIPTION")
-	if planDescription == "" {
-		planDescription = DefaultPlanDescription
-	}
-
-	// Parse the port
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = DefaultListenAddr
-	} else {
-		if port[0] != ':' {
-			port = ":" + port
-		}
-	}
-
-	// Check for vault address
-	vaultAddr := os.Getenv("VAULT_ADDR")
-	if vaultAddr == "" {
-		vaultAddr = DefaultVaultAddr
-	}
-	os.Setenv("VAULT_ADDR", normalizeAddr(vaultAddr))
-
-	// Get the vault advertise addr
-	vaultAdvertiseAddr := os.Getenv("VAULT_ADVERTISE_ADDR")
-	if vaultAdvertiseAddr == "" {
-		vaultAdvertiseAddr = normalizeAddr(vaultAddr)
-	}
-
-	// Check if renewal is enabled
-	renew := true
-	if s := os.Getenv("VAULT_RENEW"); s != "" {
-		b, err := strconv.ParseBool(s)
-		if err != nil {
-			logger.Fatalf("[ERR] failed to parse VAULT_RENEW: %s", err)
-		}
-		renew = b
-	}
-
-	// Check for vault token
-	if v := os.Getenv("VAULT_TOKEN"); v == "" {
-		logger.Fatal("[ERR] missing VAULT_TOKEN")
+	config, err := parseConfig()
+	if err != nil {
+		logger.Fatal("[ERR] failed to read configuration", err)
 	}
 
 	// Setup the vault client
@@ -136,16 +37,16 @@ func main() {
 		log:    logger,
 		client: client,
 
-		serviceID:          serviceID,
-		serviceName:        serviceName,
-		serviceDescription: serviceDescription,
-		serviceTags:        serviceTags,
+		serviceID:          config.ServiceID,
+		serviceName:        config.ServiceName,
+		serviceDescription: config.ServiceDescription,
+		serviceTags:        config.ServiceTags,
 
-		planName:        planName,
-		planDescription: planDescription,
+		planName:        config.PlanName,
+		planDescription: config.PlanDescription,
 
-		vaultAdvertiseAddr: vaultAdvertiseAddr,
-		vaultRenewToken:    renew,
+		vaultAdvertiseAddr: config.VaultAdvertiseAddr,
+		vaultRenewToken:    config.VaultRenew,
 	}
 	if err := broker.Start(); err != nil {
 		logger.Fatalf("[ERR] failed to start broker: %s", err)
@@ -153,8 +54,8 @@ func main() {
 
 	// Parse the broker credentials
 	creds := brokerapi.BrokerCredentials{
-		Username: username,
-		Password: password,
+		Username: config.SecurityUserName,
+		Password: config.SecurityUserPassword,
 	}
 
 	// Setup the HTTP handler
@@ -163,8 +64,8 @@ func main() {
 	// Listen to incoming connection
 	serverCh := make(chan struct{}, 1)
 	go func() {
-		logger.Printf("[INFO] starting server on %s", port)
-		if err := http.ListenAndServe(port, handler); err != nil {
+		logger.Printf("[INFO] starting server on %s", config.Port)
+		if err := http.ListenAndServe(config.Port, handler); err != nil {
 			logger.Fatalf("[ERR] server exited with: %s", err)
 		}
 		close(serverCh)
@@ -227,4 +128,61 @@ func normalizeAddr(s string) string {
 	u.Path = strings.TrimRight(u.Path, "/") + "/"
 
 	return u.String()
+}
+
+
+// parseConfig is broken into its own function for testability
+func parseConfig() (*Configuration, error) {
+	config := &Configuration{}
+	if err := envconfig.Process("", config); err != nil {
+		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+type Configuration struct {
+	// Required
+	SecurityUserName     string `envconfig:"security_user_name"`
+	SecurityUserPassword string `envconfig:"security_user_password"`
+	VaultToken           string `envconfig:"vault_token"`
+
+	// Optional
+	CredhubURL         string   `envconfig:"credhub_url"`
+	Port               string   `envconfig:"port" default:":8000"`
+	ServiceID          string   `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
+	VaultAddr          string   `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
+	VaultAdvertiseAddr string   `envconfig:"vault_advertise_addr"`
+	ServiceName        string   `envconfig:"service_name" default:"hashicorp-vault"`
+	ServiceDescription string   `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
+	PlanName           string   `envconfig:"plan_name" default:"shared"`
+	PlanDescription    string   `envconfig:"plan_description" default:"Secure access to Vault's storage and transit backends"`
+	ServiceTags        []string `envconfig:"service_tags"`
+	VaultRenew         bool     `envconfig:"vault_renew" default:"true"`
+}
+
+func (c *Configuration) Validate() error {
+	// Ensure required parameters were provided
+	if c.SecurityUserName == "" {
+		return errors.New("missing SECURITY_USER_NAME")
+	}
+	if c.SecurityUserPassword == "" {
+		return errors.New("missing SECURITY_USER_PASSWORD")
+	}
+	if c.VaultToken == "" {
+		return errors.New("missing VAULT_TOKEN")
+	}
+
+	// If these values aren't perfect, we can fix them
+	if c.Port[0] != ':' {
+		c.Port = ":" + c.Port
+	}
+	if c.VaultAdvertiseAddr == "" {
+		c.VaultAdvertiseAddr = c.VaultAddr
+	}
+	c.VaultAddr = normalizeAddr(c.VaultAddr)
+	c.VaultAdvertiseAddr = normalizeAddr(c.VaultAdvertiseAddr)
+	return nil
 }
