@@ -60,8 +60,7 @@ func TestNormalizeAddr(t *testing.T) {
 }
 
 func TestParseConfigDefaults(t *testing.T) {
-	restoreOrigValues := ensureEnvVarsAreUnset()
-	defer restoreOrigValues()
+	os.Clearenv()
 
 	os.Setenv("SECURITY_USER_NAME", "fizz")
 	os.Setenv("SECURITY_USER_PASSWORD", "buzz")
@@ -116,8 +115,7 @@ func TestParseConfigDefaults(t *testing.T) {
 }
 
 func TestParseConfigFromEnv(t *testing.T) {
-	restoreOrigValues := ensureEnvVarsAreUnset()
-	defer restoreOrigValues()
+	os.Clearenv()
 
 	os.Setenv("SECURITY_USER_NAME", "fizz")
 	os.Setenv("SECURITY_USER_PASSWORD", "buzz")
@@ -180,59 +178,4 @@ func TestParseConfigFromEnv(t *testing.T) {
 	if config.VaultRenew != false {
 		t.Fatal("expected false but received true")
 	}
-}
-
-func ensureEnvVarsAreUnset() func() {
-
-	// read in the current values for these variables
-	securityUserName := os.Getenv("SECURITY_USER_NAME")
-	securityUserPassword := os.Getenv("SECURITY_USER_PASSWORD")
-	vaultToken := os.Getenv("VAULT_TOKEN")
-	credhubURL := os.Getenv("CREDHUB_URL")
-	port := os.Getenv("PORT")
-	serviceID := os.Getenv("SERVICE_ID")
-	vaultAddr := os.Getenv("VAULT_ADDR")
-	vaultAdvAddr := os.Getenv("VAULT_ADVERTISE_ADDR")
-	serviceName := os.Getenv("SERVICE_NAME")
-	serviceDesc := os.Getenv("SERVICE_DESCRIPTION")
-	planName := os.Getenv("PLAN_NAME")
-	planDesc := os.Getenv("PLAN_DESCRIPTION")
-	serviceTags := os.Getenv("SERVICE_TAGS")
-	vaultRenew := os.Getenv("VAULT_RENEW")
-
-	// create a func that will restore them to their original values
-	restoreOrigValues := func(){
-		os.Setenv("SECURITY_USER_NAME", securityUserName)
-		os.Setenv("SECURITY_USER_PASSWORD", securityUserPassword)
-		os.Setenv("VAULT_TOKEN", vaultToken)
-		os.Setenv("CREDHUB_URL", credhubURL)
-		os.Setenv("PORT", port)
-		os.Setenv("SERVICE_ID", serviceID)
-		os.Setenv("VAULT_ADDR", vaultAddr)
-		os.Setenv("VAULT_ADVERTISE_ADDR", vaultAdvAddr)
-		os.Setenv("SERVICE_NAME", serviceName)
-		os.Setenv("SERVICE_DESCRIPTION", serviceDesc)
-		os.Setenv("PLAN_NAME", planName)
-		os.Setenv("PLAN_DESCRIPTION", planDesc)
-		os.Setenv("SERVICE_TAGS", serviceTags)
-		os.Setenv("VAULT_RENEW", vaultRenew)
-	}
-
-	// wipe the values during the test
-	os.Unsetenv("SECURITY_USER_NAME")
-	os.Unsetenv("SECURITY_USER_PASSWORD")
-	os.Unsetenv("VAULT_TOKEN")
-	os.Unsetenv("CREDHUB_URL")
-	os.Unsetenv("PORT")
-	os.Unsetenv("SERVICE_ID")
-	os.Unsetenv("VAULT_ADDR")
-	os.Unsetenv("VAULT_ADVERTISE_ADDR")
-	os.Unsetenv("SERVICE_NAME")
-	os.Unsetenv("SERVICE_DESCRIPTION")
-	os.Unsetenv("PLAN_NAME")
-	os.Unsetenv("PLAN_DESCRIPTION")
-	os.Unsetenv("SERVICE_TAGS")
-	os.Unsetenv("VAULT_RENEW")
-
-	return restoreOrigValues
 }
