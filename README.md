@@ -39,7 +39,7 @@ Note: This section takes a good amount of time (likely, an hour or more) due to 
 2. Install the `cf` CLI: https://docs.cloudfoundry.org/cf-cli/install-go-cli.html.
 3. Ensure you have VirtualBox installed.
 4. Ensure you have ~30gb of disk storage available in your local environment for the VirtualBox ISO and the env `cf` will create.
-5. Go through installation and configuration of `cf` thru the page on the `cf login` step here: https://pivotal.io/platform/pcf-tutorials/getting-started-with-pivotal-cloud-foundry-dev/introduction. Ignore the sample app steps regarding a Spring app.
+5. Go through installation and configuration of `cf` through the page on the `cf login` step here: https://pivotal.io/platform/pcf-tutorials/getting-started-with-pivotal-cloud-foundry-dev/introduction. Ignore the sample app steps regarding a Spring app.
 6. Note that when logging in following the example, the username is literally `user` and the password is literally `pass`, not the username and password you created during registration.
 7. Run Vault locally: `$ vault server -dev`. Use the Vault token returned as the `VAULT_TOKEN` value exported above.
 8. Make Vault reachable to your VM using ngrok (https://ngrok.com/): `$ ngrok http 8200`. Use the http URL shown as the `VAULT_ADDR` value exported above (example value: "http://4d4053a3.ngrok.io").
