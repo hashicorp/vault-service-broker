@@ -130,8 +130,6 @@ func normalizeAddr(s string) string {
 	return u.String()
 }
 
-
-// parseConfig is broken into its own function for testability
 func parseConfig() (*Configuration, error) {
 	config := &Configuration{}
 	if err := envconfig.Process("", config); err != nil {
@@ -176,7 +174,7 @@ func (c *Configuration) Validate() error {
 	}
 
 	// If these values aren't perfect, we can fix them
-	if c.Port[0] != ':' {
+	if !strings.HasPrefix(c.Port, ":") {
 		c.Port = ":" + c.Port
 	}
 	if c.VaultAdvertiseAddr == "" {
