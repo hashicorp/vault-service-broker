@@ -337,10 +337,10 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	// Determine the mounts we need
 	mounts := map[string]string{
-		"/cf/" + info.OrganizationGUID + "/secret": "generic",
-		"/cf/" + info.SpaceGUID + "/secret":        "generic",
-		"/cf/" + info.ServiceInstanceGUID + "/secret":               "generic",
-		"/cf/" + info.ServiceInstanceGUID + "/transit":              "transit",
+		"/cf/" + info.OrganizationGUID + "/secret":     "generic",
+		"/cf/" + info.SpaceGUID + "/secret":            "generic",
+		"/cf/" + info.ServiceInstanceGUID + "/secret":  "generic",
+		"/cf/" + info.ServiceInstanceGUID + "/transit": "transit",
 	}
 
 	// Mount the backends
