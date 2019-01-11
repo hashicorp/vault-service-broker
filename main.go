@@ -27,15 +27,15 @@ func main() {
 	}
 
 	// Setup the vault client
-	client, err := api.NewClient(nil)
+	vaultClient, err := api.NewClient(nil)
 	if err != nil {
-		logger.Fatal("[ERR] failed to create api client", err)
+		logger.Fatal("[ERR] failed to create vault api client", err)
 	}
 
 	// Setup the broker
 	broker := &Broker{
-		log:    logger,
-		client: client,
+		log:         logger,
+		vaultClient: vaultClient,
 
 		serviceID:          config.ServiceID,
 		serviceName:        config.ServiceName,

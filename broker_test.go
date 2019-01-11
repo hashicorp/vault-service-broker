@@ -393,7 +393,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 	}))
 
 	// To mimic main's behavior as closely as possible,
-	// Vault's address is passed to the client via an env variable.
+	// Vault's address is passed to the vaultClient via an env variable.
 	os.Setenv("VAULT_ADDR", ts.URL)
 
 	client, err := api.NewClient(nil)
@@ -405,7 +405,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 		Context: context.Background(),
 		Broker: &Broker{
 			log:                log.New(os.Stdout, "", 0),
-			client:             client,
+			vaultClient:        client,
 			serviceID:          "0654695e-0760-a1d4-1cad-5dd87b75ed99",
 			serviceName:        "hashicorp-vault",
 			serviceDescription: "HashiCorp Vault Service Broker",

@@ -40,8 +40,8 @@ type instanceInfo struct {
 }
 
 type Broker struct {
-	log    *log.Logger
-	client *api.Client
+	log         *log.Logger
+	vaultClient *api.Client
 
 	// service-specific customization
 	serviceID          string
@@ -162,7 +162,7 @@ func (b *Broker) restoreInstance(instanceID string) error {
 
 	path := "cf/broker/" + instanceID
 
-	secret, err := b.client.Logical().Read(path)
+	secret, err := b.vaultClient.Logical().Read(path)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read instance info at %q", path)
 	}
@@ -189,7 +189,7 @@ func (b *Broker) restoreInstance(instanceID string) error {
 // listDir is used to list a directory
 func (b *Broker) listDir(dir string) ([]string, error) {
 	b.log.Printf("[DEBUG] listing directory %q", dir)
-	secret, err := b.client.Logical().List(dir)
+	secret, err := b.vaultClient.Logical().List(dir)
 	if err != nil {
 		return nil, errors.Wrapf(err, "listDir %s", dir)
 	}
@@ -222,7 +222,7 @@ func (b *Broker) restoreBind(instanceID, bindingID string) error {
 	// Read from Vault
 	path := "cf/broker/" + instanceID + "/" + bindingID
 	b.log.Printf("[DEBUG] reading bind from %s", path)
-	secret, err := b.client.Logical().Read(path)
+	secret, err := b.vaultClient.Logical().Read(path)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read bind info at %q", path)
 	}
@@ -318,7 +318,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	// Create the new policy
 	policyName := "cf-" + instanceID
 	b.log.Printf("[DEBUG] creating new policy %s", policyName)
-	if err := b.client.Sys().PutPolicy(policyName, buf.String()); err != nil {
+	if err := b.vaultClient.Sys().PutPolicy(policyName, buf.String()); err != nil {
 		return spec, b.wErrorf(err, "failed to create policy %s", policyName)
 	}
 
@@ -330,7 +330,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 		"renewable":        true,
 	}
 	b.log.Printf("[DEBUG] creating new token role for %s", path)
-	if _, err := b.client.Logical().Write(path, data); err != nil {
+	if _, err := b.vaultClient.Logical().Write(path, data); err != nil {
 		return spec, b.wErrorf(err, "failed to create token role for %s", path)
 	}
 
@@ -361,7 +361,7 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	// Store the token and metadata in the generic secret backend
 	instancePath := "cf/broker/" + instanceID
 	b.log.Printf("[DEBUG] storing instance metadata at %s", instancePath)
-	if _, err := b.client.Logical().Write(instancePath, map[string]interface{}{
+	if _, err := b.vaultClient.Logical().Write(instancePath, map[string]interface{}{
 		"json": string(payload),
 	}); err != nil {
 		return spec, b.wErrorf(err, "failed to commit instance %s", instancePath)
@@ -398,21 +398,21 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	// Delete the token role
 	path := "/auth/token/roles/cf-" + instanceID
 	b.log.Printf("[DEBUG] deleting token role %s", path)
-	if _, err := b.client.Logical().Delete(path); err != nil {
+	if _, err := b.vaultClient.Logical().Delete(path); err != nil {
 		return spec, b.wErrorf(err, "failed to delete token role %s", path)
 	}
 
 	// Delete the token policy
 	policyName := "cf-" + instanceID
 	b.log.Printf("[DEBUG] deleting policy %s", policyName)
-	if err := b.client.Sys().DeletePolicy(policyName); err != nil {
+	if err := b.vaultClient.Sys().DeletePolicy(policyName); err != nil {
 		return spec, b.wErrorf(err, "failed to delete policy %s", policyName)
 	}
 
 	// Delete the instance info
 	instancePath := "cf/broker/" + instanceID
 	b.log.Printf("[DEBUG] deleting instance info at %s", instancePath)
-	if _, err := b.client.Logical().Delete(instancePath); err != nil {
+	if _, err := b.vaultClient.Logical().Delete(instancePath); err != nil {
 		return spec, b.wErrorf(err, "failed to delete instance info at %s", instancePath)
 	}
 
@@ -441,7 +441,7 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	// Create the token
 	renewable := true
 	b.log.Printf("[DEBUG] creating token with role %s", roleName)
-	secret, err := b.client.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
+	secret, err := b.vaultClient.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
 		Policies:    []string{roleName},
 		Metadata:    map[string]string{"cf-instance-id": instanceID, "cf-binding-id": bindingID},
 		DisplayName: "cf-bind-" + bindingID,
@@ -479,11 +479,11 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	// Store the token and metadata in the generic secret backend
 	path := "cf/broker/" + instanceID + "/" + bindingID
 	b.log.Printf("[DEBUG] storing binding metadata at %s", path)
-	if _, err := b.client.Logical().Write(path, map[string]interface{}{
+	if _, err := b.vaultClient.Logical().Write(path, map[string]interface{}{
 		"json": string(data),
 	}); err != nil {
 		a := secret.Auth.Accessor
-		if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
+		if err := b.vaultClient.Auth().Token().RevokeAccessor(a); err != nil {
 			b.log.Printf("[WARN] failed to revoke accessor %s", a)
 		}
 		return binding, errors.Wrapf(err, "failed to commit binding %s", path)
@@ -526,7 +526,7 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	// Read the binding info
 	path := "cf/broker/" + instanceID + "/" + bindingID
 	b.log.Printf("[DEBUG] reading %s", path)
-	secret, err := b.client.Logical().Read(path)
+	secret, err := b.vaultClient.Logical().Read(path)
 	if err != nil {
 		return b.wErrorf(err, "failed to read binding info for %s", path)
 	}
@@ -544,13 +544,13 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	// Revoke the token
 	a := info.Accessor
 	b.log.Printf("[DEBUG] revoking accessor %s for path %s", a, path)
-	if err := b.client.Auth().Token().RevokeAccessor(a); err != nil {
+	if err := b.vaultClient.Auth().Token().RevokeAccessor(a); err != nil {
 		return b.wErrorf(err, "failed to revoke accessor %s", a)
 	}
 
 	// Delete the binding info
 	b.log.Printf("[DEBUG] deleting binding info at %s", path)
-	if _, err := b.client.Logical().Delete(path); err != nil {
+	if _, err := b.vaultClient.Logical().Delete(path); err != nil {
 		return b.wErrorf(err, "failed to delete binding info at %s", path)
 	}
 
@@ -588,7 +588,7 @@ func (b *Broker) LastOperation(ctx context.Context, instanceID, operationData st
 func (b *Broker) idempotentMount(m map[string]string) error {
 	b.mountMutex.Lock()
 	defer b.mountMutex.Unlock()
-	result, err := b.client.Sys().ListMounts()
+	result, err := b.vaultClient.Sys().ListMounts()
 	if err != nil {
 		return err
 	}
@@ -605,7 +605,7 @@ func (b *Broker) idempotentMount(m map[string]string) error {
 		if _, ok := mounts[k]; ok {
 			continue
 		}
-		if err := b.client.Sys().Mount(k, &api.MountInput{
+		if err := b.vaultClient.Sys().Mount(k, &api.MountInput{
 			Type: v,
 		}); err != nil {
 			return err
@@ -619,7 +619,7 @@ func (b *Broker) idempotentMount(m map[string]string) error {
 func (b *Broker) idempotentUnmount(l []string) error {
 	b.mountMutex.Lock()
 	defer b.mountMutex.Unlock()
-	result, err := b.client.Sys().ListMounts()
+	result, err := b.vaultClient.Sys().ListMounts()
 	if err != nil {
 		return err
 	}
@@ -636,7 +636,7 @@ func (b *Broker) idempotentUnmount(l []string) error {
 		if _, ok := mounts[k]; !ok {
 			continue
 		}
-		if err := b.client.Sys().Unmount(k); err != nil {
+		if err := b.vaultClient.Sys().Unmount(k); err != nil {
 			return err
 		}
 	}
@@ -652,13 +652,13 @@ func (b *Broker) renewAuth(token, accessor string, stopCh <-chan struct{}) {
 
 	// Use renew-self instead of lookup here because we want the freshest renew
 	// and we can find out if it's renewable or not.
-	secret, err := b.client.Auth().Token().RenewTokenAsSelf(token, 0)
+	secret, err := b.vaultClient.Auth().Token().RenewTokenAsSelf(token, 0)
 	if err != nil {
 		b.log.Printf("[ERR] renew-token (%s): error looking up self: %s", accessor, err)
 		return
 	}
 
-	renewer, err := b.client.NewRenewer(&api.RenewerInput{
+	renewer, err := b.vaultClient.NewRenewer(&api.RenewerInput{
 		Secret: secret,
 	})
 	if err != nil {
@@ -695,7 +695,7 @@ func (b *Broker) renewAuth(token, accessor string, stopCh <-chan struct{}) {
 // renewVaultToken is a convenience wrapper around renewAuth which looks up
 // metadata about the token attached to this broker and starts the renewer.
 func (b *Broker) renewVaultToken() {
-	secret, err := b.client.Auth().Token().LookupSelf()
+	secret, err := b.vaultClient.Auth().Token().LookupSelf()
 	if err != nil {
 		b.log.Printf("[ERR] renew-token: failed to lookup client vault token: %s", err)
 		return
@@ -705,7 +705,7 @@ func (b *Broker) renewVaultToken() {
 		return
 	}
 
-	secret, err = b.client.Auth().Token().RenewSelf(0)
+	secret, err = b.vaultClient.Auth().Token().RenewSelf(0)
 	if err != nil {
 		b.log.Printf("[ERR] renew-token: failed to renew client vault token: %s", err)
 		return
