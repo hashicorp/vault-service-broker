@@ -105,6 +105,14 @@
   revision = "5e4ba4a7b67fc382c3bc75c6255806b381c00235"
 
 [[projects]]
+  digest = "1:b60a24f942c7031ece6c48bcab0b683c7d3d6aa9fd17e21459d9ae604da258fa"
+  name = "github.com/kelseyhightower/envconfig"
+  packages = ["."]
+  pruneopts = ""
+  revision = "f611eb38b3875cc3bd991ca91c51d06446afa14c"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
   digest = "1:59d11e81d6fdd12a771321696bb22abdd9a94d26ac864787e98c9b419e428734"
   name = "github.com/mitchellh/go-homedir"
@@ -184,6 +192,7 @@
   input-imports = [
     "code.cloudfoundry.org/lager",
     "github.com/hashicorp/vault/api",
+    "github.com/kelseyhightower/envconfig",
     "github.com/pivotal-cf/brokerapi",
     "github.com/pkg/errors",
   ]
