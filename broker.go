@@ -383,8 +383,9 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	var spec brokerapi.DeprovisionServiceSpec
 
 	b.instancesLock.Lock()
+	defer b.instancesLock.Unlock()
+
 	info, ok := b.instances[instanceID]
-	b.instancesLock.Unlock()
 	if !ok {
 		// Already deprovisioned
 		return spec, nil
@@ -423,9 +424,7 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 
 	// Delete the instance from the map
 	b.log.Printf("[DEBUG] removing instance %s from cache", info.ServiceInstanceGUID)
-	b.instancesLock.Lock()
 	delete(b.instances, info.ServiceInstanceGUID)
-	b.instancesLock.Unlock()
 
 	// Done!
 	return spec, nil
