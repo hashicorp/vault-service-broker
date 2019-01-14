@@ -35,8 +35,9 @@ type bindingInfo struct {
 }
 
 type instanceInfo struct {
-	OrganizationGUID string
-	SpaceGUID        string
+	OrganizationGUID    string
+	SpaceGUID           string
+	ServiceInstanceGUID string
 }
 
 type Broker struct {
@@ -304,26 +305,26 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	// Generate the new policy
 	var buf bytes.Buffer
-	inp := ServicePolicyTemplateInput{
-		ServiceID: instanceID,
-		SpaceID:   details.SpaceGUID,
-		OrgID:     details.OrganizationGUID,
+	info := &instanceInfo{
+		OrganizationGUID:    details.OrganizationGUID,
+		SpaceGUID:           details.SpaceGUID,
+		ServiceInstanceGUID: instanceID,
 	}
 
-	b.log.Printf("[DEBUG] generating policy for %s", instanceID)
-	if err := GeneratePolicy(&buf, &inp); err != nil {
-		return spec, b.wErrorf(err, "failed to generate policy for %s", instanceID)
+	b.log.Printf("[DEBUG] generating policy for %s", info.ServiceInstanceGUID)
+	if err := GeneratePolicy(&buf, info); err != nil {
+		return spec, b.wErrorf(err, "failed to generate policy for %s", info.ServiceInstanceGUID)
 	}
 
 	// Create the new policy
-	policyName := "cf-" + instanceID
+	policyName := "cf-" + info.ServiceInstanceGUID
 	b.log.Printf("[DEBUG] creating new policy %s", policyName)
 	if err := b.vaultClient.Sys().PutPolicy(policyName, buf.String()); err != nil {
 		return spec, b.wErrorf(err, "failed to create policy %s", policyName)
 	}
 
 	// Create the new token role
-	path := "/auth/token/roles/cf-" + instanceID
+	path := "/auth/token/roles/cf-" + info.ServiceInstanceGUID
 	data := map[string]interface{}{
 		"allowed_policies": policyName,
 		"period":           VaultPeriodicTTL,
@@ -336,10 +337,10 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 
 	// Determine the mounts we need
 	mounts := map[string]string{
-		"/cf/" + details.OrganizationGUID + "/secret": "generic",
-		"/cf/" + details.SpaceGUID + "/secret":        "generic",
-		"/cf/" + instanceID + "/secret":               "generic",
-		"/cf/" + instanceID + "/transit":              "transit",
+		"/cf/" + info.OrganizationGUID + "/secret":     "generic",
+		"/cf/" + info.SpaceGUID + "/secret":            "generic",
+		"/cf/" + info.ServiceInstanceGUID + "/secret":  "generic",
+		"/cf/" + info.ServiceInstanceGUID + "/transit": "transit",
 	}
 
 	// Mount the backends
@@ -349,17 +350,13 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 
 	// Generate instance info
-	info := &instanceInfo{
-		OrganizationGUID: details.OrganizationGUID,
-		SpaceGUID:        details.SpaceGUID,
-	}
 	payload, err := json.Marshal(info)
 	if err != nil {
 		return spec, b.wErrorf(err, "failed to encode instance json")
 	}
 
 	// Store the token and metadata in the generic secret backend
-	instancePath := "cf/broker/" + instanceID
+	instancePath := "cf/broker/" + info.ServiceInstanceGUID
 	b.log.Printf("[DEBUG] storing instance metadata at %s", instancePath)
 	if _, err := b.vaultClient.Logical().Write(instancePath, map[string]interface{}{
 		"json": string(payload),
@@ -368,9 +365,9 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	}
 
 	// Save the instance
-	b.log.Printf("[DEBUG] saving instance %s to cache", instanceID)
+	b.log.Printf("[DEBUG] saving instance %s to cache", info.ServiceInstanceGUID)
 	b.instancesLock.Lock()
-	b.instances[instanceID] = info
+	b.instances[info.ServiceInstanceGUID] = info
 	b.instancesLock.Unlock()
 
 	// Done
@@ -385,10 +382,19 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	// Create the spec to return
 	var spec brokerapi.DeprovisionServiceSpec
 
+	b.instancesLock.Lock()
+	defer b.instancesLock.Unlock()
+
+	info, ok := b.instances[instanceID]
+	if !ok {
+		// Already deprovisioned
+		return spec, nil
+	}
+
 	// Unmount the backends
 	mounts := []string{
-		"/cf/" + instanceID + "/secret",
-		"/cf/" + instanceID + "/transit",
+		"/cf/" + info.ServiceInstanceGUID + "/secret",
+		"/cf/" + info.ServiceInstanceGUID + "/transit",
 	}
 	b.log.Printf("[DEBUG] removing mounts %s", strings.Join(mounts, ", "))
 	if err := b.idempotentUnmount(mounts); err != nil {
@@ -396,31 +402,29 @@ func (b *Broker) Deprovision(ctx context.Context, instanceID string, details bro
 	}
 
 	// Delete the token role
-	path := "/auth/token/roles/cf-" + instanceID
+	path := "/auth/token/roles/cf-" + info.ServiceInstanceGUID
 	b.log.Printf("[DEBUG] deleting token role %s", path)
 	if _, err := b.vaultClient.Logical().Delete(path); err != nil {
 		return spec, b.wErrorf(err, "failed to delete token role %s", path)
 	}
 
 	// Delete the token policy
-	policyName := "cf-" + instanceID
+	policyName := "cf-" + info.ServiceInstanceGUID
 	b.log.Printf("[DEBUG] deleting policy %s", policyName)
 	if err := b.vaultClient.Sys().DeletePolicy(policyName); err != nil {
 		return spec, b.wErrorf(err, "failed to delete policy %s", policyName)
 	}
 
 	// Delete the instance info
-	instancePath := "cf/broker/" + instanceID
+	instancePath := "cf/broker/" + info.ServiceInstanceGUID
 	b.log.Printf("[DEBUG] deleting instance info at %s", instancePath)
 	if _, err := b.vaultClient.Logical().Delete(instancePath); err != nil {
 		return spec, b.wErrorf(err, "failed to delete instance info at %s", instancePath)
 	}
 
 	// Delete the instance from the map
-	b.log.Printf("[DEBUG] removing instance %s from cache", instanceID)
-	b.instancesLock.Lock()
-	delete(b.instances, instanceID)
-	b.instancesLock.Unlock()
+	b.log.Printf("[DEBUG] removing instance %s from cache", info.ServiceInstanceGUID)
+	delete(b.instances, info.ServiceInstanceGUID)
 
 	// Done!
 	return spec, nil
