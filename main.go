@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -168,6 +171,9 @@ type Configuration struct {
 
 	// Optional, for using CredHub
 	CredhubURL                       string `envconfig:"credhub_url"`
+	PathToCredhubClientCACert        string `envconfig:"path_to_credhub_client_ca_cert"`
+	PathToCredhubClientCert          string `envconfig:"path_to_credhub_client_cert"`
+	PathToCredhubClientKey           string `envconfig:"path_to_credhub_client_key"`
 	UAAEndpoint                      string `envconfig:"uaa_endpoint"`
 	UAAClientName                    string `envconfig:"uaa_client_name"`
 	UAAClientSecret                  string `envconfig:"uaa_client_secret"`
@@ -217,19 +223,47 @@ func (c *Configuration) Validate() error {
 // in Credhub to see if they exist. If they do and they have a value, the Configuration
 // is updated with that value for that field.
 func credhubProcess(cfLogger lager.Logger, prefix string, config *Configuration) error {
-	uaaConf := &uaaconf.Config{
-		ClientName:                    config.UAAClientName,
-		ClientSecret:                  config.UAAClientSecret,
-		UaaEndpoint:                   config.UAAEndpoint,
-		SkipVerification:              config.UAASkipVerification,
-		CACerts:                       config.UAACACerts,
-		InsecureAllowAnySigningMethod: config.UAAInsecureAllowAnySigningMethod,
+
+	var credhubClient *credhub.Client
+
+	if config.UAAClientName != "" {
+		// Use CredHub's UAA auth method
+		uaaConf := &uaaconf.Config{
+			ClientName:                    config.UAAClientName,
+			ClientSecret:                  config.UAAClientSecret,
+			UaaEndpoint:                   config.UAAEndpoint,
+			SkipVerification:              config.UAASkipVerification,
+			CACerts:                       config.UAACACerts,
+			InsecureAllowAnySigningMethod: config.UAAInsecureAllowAnySigningMethod,
+		}
+		uaaClient, err := uaa.NewClient(cfLogger, uaaConf, clock.NewClock())
+		if err != nil {
+			return err
+		}
+		credhubClient = credhub.New(config.CredhubURL, credhub.NewUAAAuthClient(cleanhttp.DefaultClient(), uaaClient))
+
+	} else {
+		// Use CredHub's mutual TLS auth method
+		caCert, err := ioutil.ReadFile(config.PathToCredhubClientCACert)
+		if err != nil {
+			return err
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caCert)
+
+		clientCert, err := tls.LoadX509KeyPair(config.PathToCredhubClientCert, config.PathToCredhubClientKey)
+		if err != nil {
+			return err
+		}
+		httpClient := cleanhttp.DefaultClient()
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:      pool,
+				Certificates: []tls.Certificate{clientCert},
+			},
+		}
+		credhubClient = credhub.New(config.CredhubURL, httpClient)
 	}
-	uaaClient, err := uaa.NewClient(cfLogger, uaaConf, clock.NewClock())
-	if err != nil {
-		return err
-	}
-	credhubClient := credhub.New(config.CredhubURL, credhub.NewUAAAuthClient(cleanhttp.DefaultClient(), uaaClient))
 
 	// Pull the "envconfig" field name from each field and look for it in Credhub
 	configTypeInfo := reflect.TypeOf(*config)
