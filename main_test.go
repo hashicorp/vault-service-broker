@@ -202,56 +202,31 @@ func TestParseConfigFromCredhub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.SecurityUserName != "securityUserName" {
-		t.Fatalf("expected %s but received %s", `"securityUserName"`, config.SecurityUserName)
+
+	expectedVsActual := map[string]string{
+		"securityUserName":            config.SecurityUserName,
+		"securityUserPassword":        config.SecurityUserPassword,
+		"vaultToken":                  config.VaultToken,
+		credhubTs.URL:                 config.CredhubURL,
+		uaaTs.URL:                     config.UAAEndpoint,
+		"client-name":                 config.UAAClientName,
+		"client-secret":               config.UAAClientSecret,
+		":8080":                       config.Port,
+		"serviceID":                   config.ServiceID,
+		"https://vaultAddr/":          config.VaultAddr,
+		"https://vaultAdvertiseAddr/": config.VaultAdvertiseAddr,
+		"serviceName":                 config.ServiceName,
+		"serviceDescription":          config.ServiceDescription,
+		"planName":                    config.PlanName,
+		"planDescription":             config.PlanDescription,
+		"[service tags]":              fmt.Sprintf("%s", config.ServiceTags),
+		"false":                       fmt.Sprintf("%v", config.VaultRenew),
 	}
-	if config.SecurityUserPassword != "securityUserPassword" {
-		t.Fatalf("expected %s but received %s", `"securityUserPassword"`, config.SecurityUserPassword)
-	}
-	if config.VaultToken != "vaultToken" {
-		t.Fatalf("expected %s but received %s", `"vaultToken"`, config.VaultToken)
-	}
-	if config.CredhubURL != credhubTs.URL {
-		t.Fatalf("expected %s but received %s", credhubTs.URL, config.CredhubURL)
-	}
-	if config.UAAEndpoint != uaaTs.URL {
-		t.Fatalf("expected %s but received %s", uaaTs.URL, config.UAAEndpoint)
-	}
-	if config.UAAClientName != "client-name" {
-		t.Fatalf("expected %s but received %s", "client-name", config.UAAClientName)
-	}
-	if config.UAAClientSecret != "client-secret" {
-		t.Fatalf("expected %s but received %s", "client-secret", config.UAAClientSecret)
-	}
-	if config.Port != ":8080" {
-		t.Fatalf("expected %s but received %s", `":8080"`, config.Port)
-	}
-	if config.ServiceID != "serviceID" {
-		t.Fatalf("expected %s but received %s", `"serviceID"`, config.ServiceID)
-	}
-	if config.VaultAddr != "https://vaultAddr/" {
-		t.Fatalf("expected %s but received %s", `"http:s//vaultAddr/"`, config.VaultAddr)
-	}
-	if config.VaultAdvertiseAddr != "https://vaultAdvertiseAddr/" {
-		t.Fatalf("expected %s but received %s", `"https://vaultAdvertiseAddr/"`, config.VaultAdvertiseAddr)
-	}
-	if config.ServiceName != "serviceName" {
-		t.Fatalf("expected %s but received %s", `"serviceName"`, config.ServiceName)
-	}
-	if config.ServiceDescription != "serviceDescription" {
-		t.Fatalf("expected %s but received %s", `"serviceDescription"`, config.ServiceDescription)
-	}
-	if config.PlanName != "planName" {
-		t.Fatalf("expected %s but received %s", `"planName"`, config.PlanName)
-	}
-	if config.PlanDescription != "planDescription" {
-		t.Fatalf("expected %s but received %s", `"planDescription"`, config.PlanDescription)
-	}
-	if len(config.ServiceTags) != 2 {
-		t.Fatalf("expected %d but received %d: %s", 2, len(config.ServiceTags), config.ServiceTags)
-	}
-	if config.VaultRenew != false {
-		t.Fatal("expected false but received true")
+
+	for expected, actual := range expectedVsActual {
+		if expected != actual {
+			t.Fatalf(`expected "%s" but received "%s"`, expected, actual)
+		}
 	}
 }
 
@@ -287,56 +262,31 @@ func TestCredhubConfigOverridesEnvConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.SecurityUserName != "securityUserName" {
-		t.Fatalf("expected %s but received %s", `"securityUserName"`, config.SecurityUserName)
+
+	expectedVsActual := map[string]string{
+		"securityUserName":            config.SecurityUserName,
+		"securityUserPassword":        config.SecurityUserPassword,
+		"vaultToken":                  config.VaultToken,
+		credhubTs.URL:                 config.CredhubURL,
+		uaaTs.URL:                     config.UAAEndpoint,
+		"client-name":                 config.UAAClientName,
+		"client-secret":               config.UAAClientSecret,
+		":8080":                       config.Port,
+		"serviceID":                   config.ServiceID,
+		"https://vaultAddr/":          config.VaultAddr,
+		"https://vaultAdvertiseAddr/": config.VaultAdvertiseAddr,
+		"serviceName":                 config.ServiceName,
+		"serviceDescription":          config.ServiceDescription,
+		"planName":                    config.PlanName,
+		"planDescription":             config.PlanDescription,
+		"[service tags]":              fmt.Sprintf("%s", config.ServiceTags),
+		"false":                       fmt.Sprintf("%v", config.VaultRenew),
 	}
-	if config.SecurityUserPassword != "securityUserPassword" {
-		t.Fatalf("expected %s but received %s", `"securityUserPassword"`, config.SecurityUserPassword)
-	}
-	if config.VaultToken != "vaultToken" {
-		t.Fatalf("expected %s but received %s", `"vaultToken"`, config.VaultToken)
-	}
-	if config.CredhubURL != credhubTs.URL {
-		t.Fatalf("expected %s but received %s", credhubTs.URL, config.CredhubURL)
-	}
-	if config.UAAEndpoint != uaaTs.URL {
-		t.Fatalf("expected %s but received %s", uaaTs.URL, config.UAAEndpoint)
-	}
-	if config.UAAClientName != "client-name" {
-		t.Fatalf("expected %s but received %s", "client-name", config.UAAClientName)
-	}
-	if config.UAAClientSecret != "client-secret" {
-		t.Fatalf("expected %s but received %s", "client-secret", config.UAAClientSecret)
-	}
-	if config.Port != ":8080" {
-		t.Fatalf("expected %s but received %s", `":8080"`, config.Port)
-	}
-	if config.ServiceID != "serviceID" {
-		t.Fatalf("expected %s but received %s", `"serviceID"`, config.ServiceID)
-	}
-	if config.VaultAddr != "https://vaultAddr/" {
-		t.Fatalf("expected %s but received %s", `"http:s//vaultAddr/"`, config.VaultAddr)
-	}
-	if config.VaultAdvertiseAddr != "https://vaultAdvertiseAddr/" {
-		t.Fatalf("expected %s but received %s", `"https://vaultAdvertiseAddr/"`, config.VaultAdvertiseAddr)
-	}
-	if config.ServiceName != "serviceName" {
-		t.Fatalf("expected %s but received %s", `"serviceName"`, config.ServiceName)
-	}
-	if config.ServiceDescription != "serviceDescription" {
-		t.Fatalf("expected %s but received %s", `"serviceDescription"`, config.ServiceDescription)
-	}
-	if config.PlanName != "planName" {
-		t.Fatalf("expected %s but received %s", `"planName"`, config.PlanName)
-	}
-	if config.PlanDescription != "planDescription" {
-		t.Fatalf("expected %s but received %s", `"planDescription"`, config.PlanDescription)
-	}
-	if len(config.ServiceTags) != 2 {
-		t.Fatalf("expected %d but received %d: %s", 2, len(config.ServiceTags), config.ServiceTags)
-	}
-	if config.VaultRenew != false {
-		t.Fatal("expected false but received true")
+
+	for expected, actual := range expectedVsActual {
+		if expected != actual {
+			t.Fatalf(`expected "%s" but received "%s"`, expected, actual)
+		}
 	}
 }
 
