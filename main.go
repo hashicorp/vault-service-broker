@@ -213,7 +213,7 @@ func (c *Configuration) Validate() error {
 }
 
 // credhubProcess iterates over the names of variables as set in the `envconfig` tag
-// on the Configuration. It prepends them with VAULT_SERVICE_BROKER_ and then looks
+// on the Configuration. It prepends them with "prefix" and then looks
 // in Credhub to see if they exist. If they do and they have a value, the Configuration
 // is updated with that value for that field.
 func credhubProcess(cfLogger lager.Logger, prefix string, config *Configuration) error {
