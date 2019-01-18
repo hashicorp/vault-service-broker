@@ -25,6 +25,14 @@ path "cf/{{ .SpaceGUID }}/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
+path "cf/{{ .ApplicationGUID }}" {
+  capabilities = ["list"]
+}
+
+path "cf/{{ .ApplicationGUID }}/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
 path "cf/{{ .OrganizationGUID }}" {
   capabilities = ["list"]
 }
