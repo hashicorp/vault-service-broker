@@ -475,6 +475,35 @@ currently recognizes the following.
 
 - `SECURITY_USER_PASSWORD` - (default: none) - password for basic auth
 
+### Providing Configuration Through CredHub
+
+Any of the Vault Service Broker's environment variables can be set through CredHub. 
+Authenticating to CredHub is typically done by using a UAA server. To configure this,
+the following environment variables must be set:
+
+- `CREDHUB_URL` (default: none) - CredHub's base URL (ex. "https://example.com")
+- `UAA_ENDPOINT` (default: none) - UAA's base URL (ex. "http://localhost:8080/uaa")
+- `UAA_CLIENT_NAME` (default: none) - Client name to use when gaining CredHub auth token through UAA
+- `UAA_CLIENT_SECRET` (default: none) - Client secret to use when gaining CredHub auth token through UAA
+
+The following optional parameters are also available:
+
+- `UAA_CA_CERTS` (default: none) - CA certs to use when authenticating to UAA
+- `UAA_SKIP_VERIFICATION` (default: false) - Skip verifying certificates when calling UAA
+- `UAA_INSECURE_ALLOW_ANY_SIGNING_METHOD` (default: false) - Allow any signing method when verifying UAA certs
+
+Once this is set, Vault will check CredHub for all environment variables listed above.
+All variables must be prefixed with "VAULT_SERVICE_BROKER_". For example:
+
+- `VAULT_SERVICE_BROKER_SECURITY_USER_PASSWORD`: "$ecure_pa$$w0rd"
+- `VAULT_SERVICE_BROKER_VAULT_RENEW`: "false"
+- `VAULT_SERVICE_BROKER_SERVICE_TAGS`: "production,security"
+
+Please keep the following in mind:
+- You may set configuration through both CredHub and environment variables
+- CredHub is preferred, so if a variable exists in both places, the CredHub value will prevail
+- The values for the CredHub variables must be given as strings in the same format as you would an environment variable
+
 ### Granting Access to Other Paths
 
 The service broker has an opinionated setup of policies and mounts to provide a
