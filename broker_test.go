@@ -71,9 +71,12 @@ func TestBroker_Bind_Unbind(t *testing.T) {
 	env.Broker.instances["instance-id"] = &instanceInfo{
 		SpaceGUID:        "space-guid",
 		OrganizationGUID: "organization-guid",
+		ServiceInstanceGUID: "instance-id",
 	}
 
-	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{})
+	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{
+		AppGUID: "app-id",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,6 +276,10 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			w.WriteHeader(204)
 			return
 
+		case reqURL == "/v1/cf/broker/app-id" && r.Method == "PUT":
+			w.WriteHeader(204)
+			return
+
 		case reqURL == "/v1/cf/broker/instance-id/binding-id" && r.Method == "PUT":
 			w.WriteHeader(204)
 			return
@@ -332,6 +339,14 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			return
 
 		case reqURL == "/v1/sys/mounts/cf/instance-id/transit" && r.Method == "POST":
+			w.WriteHeader(204)
+			return
+
+		case reqURL == "/v1/sys/mounts/cf/app-id/secret" && r.Method == "POST":
+			w.WriteHeader(204)
+			return
+
+		case reqURL == "/v1/sys/mounts/cf/app-id/transit" && r.Method == "POST":
 			w.WriteHeader(204)
 			return
 

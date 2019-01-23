@@ -28,6 +28,7 @@ var _ brokerapi.ServiceBroker = (*Broker)(nil)
 type bindingInfo struct {
 	Organization string
 	Space        string
+	Application  string
 	Binding      string
 	ClientToken  string
 	Accessor     string
@@ -37,6 +38,7 @@ type bindingInfo struct {
 type instanceInfo struct {
 	OrganizationGUID    string
 	SpaceGUID           string
+	ApplicationGUID     string
 	ServiceInstanceGUID string
 }
 
@@ -303,39 +305,15 @@ func (b *Broker) Provision(ctx context.Context, instanceID string, details broke
 	// Create the spec to return
 	var spec brokerapi.ProvisionedServiceSpec
 
-	// Generate the new policy
-	var buf bytes.Buffer
 	info := &instanceInfo{
 		OrganizationGUID:    details.OrganizationGUID,
 		SpaceGUID:           details.SpaceGUID,
 		ServiceInstanceGUID: instanceID,
 	}
 
-	b.log.Printf("[DEBUG] generating policy for %s", info.ServiceInstanceGUID)
-	if err := GeneratePolicy(&buf, info); err != nil {
-		return spec, b.wErrorf(err, "failed to generate policy for %s", info.ServiceInstanceGUID)
-	}
-
-	// Create the new policy
-	policyName := "cf-" + info.ServiceInstanceGUID
-	b.log.Printf("[DEBUG] creating new policy %s", policyName)
-	if err := b.vaultClient.Sys().PutPolicy(policyName, buf.String()); err != nil {
-		return spec, b.wErrorf(err, "failed to create policy %s", policyName)
-	}
-
-	// Create the new token role
-	path := "/auth/token/roles/cf-" + info.ServiceInstanceGUID
-	data := map[string]interface{}{
-		"allowed_policies": policyName,
-		"period":           VaultPeriodicTTL,
-		"renewable":        true,
-	}
-	b.log.Printf("[DEBUG] creating new token role for %s", path)
-	if _, err := b.vaultClient.Logical().Write(path, data); err != nil {
-		return spec, b.wErrorf(err, "failed to create token role for %s", path)
-	}
-
 	// Determine the mounts we need
+	// Note that in the Bind method we also add application-level mounts,
+	// but we don't here because we haven't received an application GUID yet
 	mounts := map[string]string{
 		"/cf/" + info.OrganizationGUID + "/secret":     "generic",
 		"/cf/" + info.SpaceGUID + "/secret":            "generic",
@@ -439,38 +417,79 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	// Create the binding to return
 	var binding brokerapi.Binding
 
-	// Create the role name to create the token against
-	roleName := "cf-" + instanceID
-
-	// Create the token
-	renewable := true
-	b.log.Printf("[DEBUG] creating token with role %s", roleName)
-	secret, err := b.vaultClient.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
-		Policies:    []string{roleName},
-		Metadata:    map[string]string{"cf-instance-id": instanceID, "cf-binding-id": bindingID},
-		DisplayName: "cf-bind-" + bindingID,
-		Renewable:   &renewable,
-	}, roleName)
-	if err != nil {
-		return binding, b.wErrorf(err, "failed to create token with role %s", roleName)
-	}
-	if secret.Auth == nil {
-		return binding, b.errorf("secret with role %s has no auth", roleName)
-	}
-
 	// Get the instance for this instanceID
 	b.log.Printf("[DEBUG] looking up instance %s from cache", instanceID)
 	b.instancesLock.Lock()
+	defer b.instancesLock.Unlock()
+
 	instance, ok := b.instances[instanceID]
-	b.instancesLock.Unlock()
 	if !ok {
 		return binding, b.errorf("no instance exists with ID %s", instanceID)
+	}
+
+	// The details.AppGUID isn't _required_ to be provided per the Open Service Broker API spec;
+	// however, in testing PCF's behavior, we found that it's always populated by the platform
+	instance.ApplicationGUID = details.AppGUID
+
+	// Ensure we have application-level mounts
+	mounts := map[string]string{
+		"/cf/" + instance.ApplicationGUID + "/secret":  "generic",
+		"/cf/" + instance.ApplicationGUID + "/transit": "transit",
+	}
+
+	// Mount the application-level backends
+	b.log.Printf("[DEBUG] creating mounts %s", mapToKV(mounts, ", "))
+	if err := b.idempotentMount(mounts); err != nil {
+		return binding, b.wErrorf(err, "failed to create mounts %s", mapToKV(mounts, ", "))
+	}
+
+	// Generate the new policy
+	var buf bytes.Buffer
+	b.log.Printf("[DEBUG] generating policy for %s", instance.ServiceInstanceGUID)
+	if err := GeneratePolicy(&buf, instance); err != nil {
+		return binding, b.wErrorf(err, "failed to generate policy for %s", instance.ServiceInstanceGUID)
+	}
+
+	// Create the new policy
+	policyName := "cf-" + instance.ServiceInstanceGUID
+	b.log.Printf("[DEBUG] creating new policy %s", policyName)
+	if err := b.vaultClient.Sys().PutPolicy(policyName, buf.String()); err != nil {
+		return binding, b.wErrorf(err, "failed to create policy %s", policyName)
+	}
+
+	// Create the new token role
+	tokenRolePath := "/auth/token/roles/cf-" + instance.ServiceInstanceGUID
+	tokenData := map[string]interface{}{
+		"allowed_policies": policyName,
+		"period":           VaultPeriodicTTL,
+		"renewable":        true,
+	}
+	b.log.Printf("[DEBUG] creating new token role for %s", tokenRolePath)
+	if _, err := b.vaultClient.Logical().Write(tokenRolePath, tokenData); err != nil {
+		return binding, b.wErrorf(err, "failed to create token role for %s", tokenRolePath)
+	}
+
+	// Create the token
+	renewable := true
+	b.log.Printf("[DEBUG] creating token with role %s", policyName)
+	secret, err := b.vaultClient.Auth().Token().CreateWithRole(&api.TokenCreateRequest{
+		Policies:    []string{policyName},
+		Metadata:    map[string]string{"cf-instance-id": instanceID, "cf-binding-id": bindingID},
+		DisplayName: "cf-bind-" + bindingID,
+		Renewable:   &renewable,
+	}, policyName)
+	if err != nil {
+		return binding, b.wErrorf(err, "failed to create token with role %s", policyName)
+	}
+	if secret.Auth == nil {
+		return binding, b.errorf("secret with role %s has no auth", policyName)
 	}
 
 	// Create a binding info object
 	info := &bindingInfo{
 		Organization: instance.OrganizationGUID,
 		Space:        instance.SpaceGUID,
+		Application:  details.AppGUID,
 		Binding:      bindingID,
 		ClientToken:  secret.Auth.ClientToken,
 		Accessor:     secret.Auth.Accessor,
@@ -500,8 +519,8 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	// Store the info
 	b.log.Printf("[DEBUG] saving bind %s to cache", bindingID)
 	b.bindLock.Lock()
+	defer b.bindLock.Unlock()
 	b.binds[bindingID] = info
-	b.bindLock.Unlock()
 
 	// Save the credentials
 	binding.Credentials = map[string]interface{}{
@@ -511,8 +530,14 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 			"token":    secret.Auth.ClientToken,
 		},
 		"backends": map[string]interface{}{
-			"generic": "cf/" + instanceID + "/secret",
-			"transit": "cf/" + instanceID + "/transit",
+			"generic": []string{
+				"cf/" + instanceID + "/secret",
+				"cf/" + details.AppGUID + "/secret",
+			},
+			"transit": []string{
+				"cf/" + instanceID + "/transit",
+				"cf/" + details.AppGUID + "/transit",
+			},
 		},
 		"backends_shared": map[string]interface{}{
 			"organization": "cf/" + instance.OrganizationGUID + "/secret",
