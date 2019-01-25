@@ -69,8 +69,8 @@ func TestBroker_Bind_Unbind(t *testing.T) {
 	// Seed the broker with the results of provisioning an instance
 	// so binding can succeed.
 	env.Broker.instances["instance-id"] = &instanceInfo{
-		SpaceGUID:        "space-guid",
-		OrganizationGUID: "organization-guid",
+		SpaceGUID:           "space-guid",
+		OrganizationGUID:    "organization-guid",
 		ServiceInstanceGUID: "instance-id",
 	}
 
