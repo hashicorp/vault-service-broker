@@ -3,8 +3,8 @@
   name = "code.cloudfoundry.org/lager"
 
 [[constraint]]
-branch = "master"
   name = "github.com/hashicorp/vault"
+  version = "1.0.0"
 
 [[constraint]]
   branch = "master"
@@ -13,3 +13,11 @@ branch = "master"
 [[constraint]]
   name = "github.com/pkg/errors"
   version = "0.8.0"
+
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/cloudfoundry-community/go-credhub"

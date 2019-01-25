@@ -9,47 +9,43 @@ const (
 	// ServicePolicyTemplate is the template used to generate a Vault policy on
 	// service create.
 	ServicePolicyTemplate string = `
-path "cf/{{ .ServiceID }}" {
+path "cf/{{ .ServiceInstanceGUID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .ServiceID }}/*" {
+path "cf/{{ .ServiceInstanceGUID }}/*" {
 	capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "cf/{{ .SpaceID }}" {
+path "cf/{{ .SpaceGUID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .SpaceID }}/*" {
+path "cf/{{ .SpaceGUID }}/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "cf/{{ .OrgID }}" {
+path "cf/{{ .ApplicationGUID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .OrgID }}/*" {
+path "cf/{{ .ApplicationGUID }}/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "cf/{{ .OrganizationGUID }}" {
+  capabilities = ["list"]
+}
+
+path "cf/{{ .OrganizationGUID }}/*" {
   capabilities = ["read", "list"]
 }
 `
 )
 
-// ServicePolicyTemplateInput is used as input to the ServicePolicyTemplate.
-type ServicePolicyTemplateInput struct {
-	// ServiceID is the unique ID of the service.
-	ServiceID string
-
-	// SpaceID is the unique ID of the space.
-	SpaceID string
-
-	// OrgID is the unique ID of the space.
-	OrgID string
-}
-
 // GeneratePolicy takes an io.Writer object and template input and renders the
 // resulting template into the writer.
-func GeneratePolicy(w io.Writer, i *ServicePolicyTemplateInput) error {
+func GeneratePolicy(w io.Writer, i *instanceInfo) error {
 	tmpl, err := template.New("service").Parse(ServicePolicyTemplate)
 	if err != nil {
 		return err

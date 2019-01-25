@@ -1,0 +1,13 @@
+---
+platform: linux
+
+inputs:
+- name: bbl-plan
+- name: source
+
+outputs:
+- name: overridden-bbl-plan
+
+run:
+  path: source/integration-tests/ci/tasks/create-overrides.sh
+  

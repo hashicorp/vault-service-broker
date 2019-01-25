@@ -15,3 +15,6 @@
 
 # Jetbrains IDE
 .idea*
+
+# binary
+vault-service-broker

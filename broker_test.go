@@ -71,9 +71,12 @@ func TestBroker_Bind_Unbind(t *testing.T) {
 	env.Broker.instances["instance-id"] = &instanceInfo{
 		SpaceGUID:        "space-guid",
 		OrganizationGUID: "organization-guid",
+		ServiceInstanceGUID: "instance-id",
 	}
 
-	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{})
+	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{
+		AppGUID: "app-id",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,6 +276,10 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			w.WriteHeader(204)
 			return
 
+		case reqURL == "/v1/cf/broker/app-id" && r.Method == "PUT":
+			w.WriteHeader(204)
+			return
+
 		case reqURL == "/v1/cf/broker/instance-id/binding-id" && r.Method == "PUT":
 			w.WriteHeader(204)
 			return
@@ -335,6 +342,14 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			w.WriteHeader(204)
 			return
 
+		case reqURL == "/v1/sys/mounts/cf/app-id/secret" && r.Method == "POST":
+			w.WriteHeader(204)
+			return
+
+		case reqURL == "/v1/sys/mounts/cf/app-id/transit" && r.Method == "POST":
+			w.WriteHeader(204)
+			return
+
 		case reqURL == "/v1/sys/mounts/cf/organization-guid/secret" && r.Method == "POST":
 			w.WriteHeader(204)
 			return
@@ -393,7 +408,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 	}))
 
 	// To mimic main's behavior as closely as possible,
-	// Vault's address is passed to the client via an env variable.
+	// Vault's address is passed to the vaultClient via an env variable.
 	os.Setenv("VAULT_ADDR", ts.URL)
 
 	client, err := api.NewClient(nil)
@@ -405,13 +420,13 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 		Context: context.Background(),
 		Broker: &Broker{
 			log:                log.New(os.Stdout, "", 0),
-			client:             client,
-			serviceID:          DefaultServiceID,
-			serviceName:        DefaultServiceName,
-			serviceDescription: DefaultServiceDescription,
-			planName:           DefaultPlanName,
-			planDescription:    DefaultPlanDescription,
-			vaultAdvertiseAddr: DefaultVaultAddr,
+			vaultClient:        client,
+			serviceID:          "0654695e-0760-a1d4-1cad-5dd87b75ed99",
+			serviceName:        "hashicorp-vault",
+			serviceDescription: "HashiCorp Vault Service Broker",
+			planName:           "shared",
+			planDescription:    "Secure access to Vault's storage and transit backends",
+			vaultAdvertiseAddr: "https://127.0.0.1:8200",
 			vaultRenewToken:    true,
 			instances:          make(map[string]*instanceInfo),
 			binds:              make(map[string]*bindingInfo),

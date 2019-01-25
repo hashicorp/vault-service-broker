@@ -39,7 +39,7 @@ Note: This section takes a good amount of time (likely, an hour or more) due to 
 2. Install the `cf` CLI: https://docs.cloudfoundry.org/cf-cli/install-go-cli.html.
 3. Ensure you have VirtualBox installed.
 4. Ensure you have ~30gb of disk storage available in your local environment for the VirtualBox ISO and the env `cf` will create.
-5. Go through installation and configuration of `cf` thru the page on the `cf login` step here: https://pivotal.io/platform/pcf-tutorials/getting-started-with-pivotal-cloud-foundry-dev/introduction. Ignore the sample app steps regarding a Spring app.
+5. Go through installation and configuration of `cf` through the page on the `cf login` step here: https://pivotal.io/platform/pcf-tutorials/getting-started-with-pivotal-cloud-foundry-dev/introduction. Ignore the sample app steps regarding a Spring app.
 6. Note that when logging in following the example, the username is literally `user` and the password is literally `pass`, not the username and password you created during registration.
 7. Run Vault locally: `$ vault server -dev`. Use the Vault token returned as the `VAULT_TOKEN` value exported above.
 8. Make Vault reachable to your VM using ngrok (https://ngrok.com/): `$ ngrok http 8200`. Use the http URL shown as the `VAULT_ADDR` value exported above (example value: "http://4d4053a3.ngrok.io").
@@ -474,6 +474,35 @@ currently recognizes the following.
 - `SECURITY_USER_NAME` - (default: none) - username for basic auth
 
 - `SECURITY_USER_PASSWORD` - (default: none) - password for basic auth
+
+### Providing Configuration Through CredHub
+
+Any of the Vault Service Broker's environment variables can be set through CredHub. 
+Authenticating to CredHub is typically done by using a UAA server. To configure this,
+the following environment variables must be set:
+
+- `CREDHUB_URL` (default: none) - CredHub's base URL (ex. "https://example.com")
+- `UAA_ENDPOINT` (default: none) - UAA's base URL (ex. "http://localhost:8080/uaa")
+- `UAA_CLIENT_NAME` (default: none) - Client name to use when gaining CredHub auth token through UAA
+- `UAA_CLIENT_SECRET` (default: none) - Client secret to use when gaining CredHub auth token through UAA
+
+The following optional parameters are also available:
+
+- `UAA_CA_CERTS` (default: none) - CA certs to use when authenticating to UAA
+- `UAA_SKIP_VERIFICATION` (default: false) - Skip verifying certificates when calling UAA
+- `UAA_INSECURE_ALLOW_ANY_SIGNING_METHOD` (default: false) - Allow any signing method when verifying UAA certs
+
+Once this is set, Vault will check CredHub for all environment variables listed above.
+All variables must be prefixed with "VAULT_SERVICE_BROKER_". For example:
+
+- `VAULT_SERVICE_BROKER_SECURITY_USER_PASSWORD`: "$ecure_pa$$w0rd"
+- `VAULT_SERVICE_BROKER_VAULT_RENEW`: "false"
+- `VAULT_SERVICE_BROKER_SERVICE_TAGS`: "production,security"
+
+Please keep the following in mind:
+- You may set configuration through both CredHub and environment variables
+- CredHub is preferred, so if a variable exists in both places, the CredHub value will prevail
+- The values for the CredHub variables must be given as strings in the same format as you would an environment variable
 
 ### Granting Access to Other Paths
 
