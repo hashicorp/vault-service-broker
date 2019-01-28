@@ -156,7 +156,8 @@
   revision = "392dba7d905ed5d04a5794ba89f558b27e2ba1ca"
 
 [[projects]]
-  digest = "1:067943f4fc285e3714bee874139fa8f6cf4a7a8cb7b615c96e6b0133c9af8d50"
+  branch = "master"
+  digest = "1:17552f016ab04e1e18d8179166fcfc15b4ddeac85ac9dd0e063eceb459e2e226"
   name = "github.com/hashicorp/vault"
   packages = [
     "api",
@@ -168,8 +169,7 @@
     "helper/strutil",
   ]
   pruneopts = ""
-  revision = "37a1dc9c477c1c68c022d2084550f25bf20cac33"
-  version = "v1.0.2"
+  revision = "679c09e60f9a9dd91718cbca5db171acd3d93931"
 
 [[projects]]
   digest = "1:b3c5b95e56c06f5aa72cb2500e6ee5f44fcd122872d4fec2023a488e561218bc"

@@ -3,8 +3,8 @@
   name = "code.cloudfoundry.org/lager"
 
 [[constraint]]
+  branch = "master"
   name = "github.com/hashicorp/vault"
-  version = "1.0.0"
 
 [[constraint]]
   branch = "master"
