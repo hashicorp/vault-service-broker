@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/leader - HTTP API"
-sidebar_current: "docs-http-system-leader"
+sidebar_title: "<code>/sys/leader</code>"
+sidebar_current: "api-http-system-leader"
 description: |-
   The `/sys/leader` endpoint is used to check the high availability status and
   current leader of Vault.
@@ -25,7 +26,7 @@ of Vault.
 
 ```
 $ curl \
-    https://vault.rocks/v1/sys/leader
+    http://127.0.0.1:8200/v1/sys/leader
 ```
 
 ### Sample Response
@@ -34,6 +35,9 @@ $ curl \
 {
   "ha_enabled": true,
   "is_self": false,
-  "leader_address": "https://127.0.0.1:8200/"
+  "leader_address": "https://127.0.0.1:8200/",
+  "leader_cluster_address": "https://127.0.0.1:8201/",
+  "performance_standby": false,
+  "performance_standby_last_remote_wal": 0
 }
 ```

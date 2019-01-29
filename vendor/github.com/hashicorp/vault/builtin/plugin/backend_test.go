@@ -1,23 +1,32 @@
-package plugin
+package plugin_test
 
 import (
-	"io/ioutil"
+	"context"
+	"fmt"
 	"os"
 	"testing"
 
+	log "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/vault/builtin/plugin"
+	"github.com/hashicorp/vault/helper/consts"
+	"github.com/hashicorp/vault/helper/logging"
 	"github.com/hashicorp/vault/helper/pluginutil"
-	"github.com/hashicorp/vault/http"
+	vaulthttp "github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/logical"
-	"github.com/hashicorp/vault/logical/plugin"
+	logicalPlugin "github.com/hashicorp/vault/logical/plugin"
 	"github.com/hashicorp/vault/logical/plugin/mock"
 	"github.com/hashicorp/vault/vault"
 )
+
+func TestBackend_impl(t *testing.T) {
+	var _ logical.Backend = &plugin.PluginBackend{}
+}
 
 func TestBackend(t *testing.T) {
 	config, cleanup := testConfig(t)
 	defer cleanup()
 
-	_, err := Backend(config)
+	_, err := plugin.Backend(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,33 +36,24 @@ func TestBackend_Factory(t *testing.T) {
 	config, cleanup := testConfig(t)
 	defer cleanup()
 
-	_, err := Factory(config)
+	_, err := plugin.Factory(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestBackend_PluginMain(t *testing.T) {
-	if os.Getenv(pluginutil.PluginUnwrapTokenEnv) == "" {
+	args := []string{}
+	if os.Getenv(pluginutil.PluginUnwrapTokenEnv) == "" && os.Getenv(pluginutil.PluginMetadataModeEnv) != "true" {
 		return
 	}
 
-	content := []byte(vault.TestClusterCACert)
-	tmpfile, err := ioutil.TempFile("", "test-cacert")
-	if err != nil {
-		t.Fatal(err)
+	caPEM := os.Getenv(pluginutil.PluginCACertPEMEnv)
+	if caPEM == "" {
+		t.Fatal("CA cert not passed in")
 	}
 
-	defer os.Remove(tmpfile.Name()) // clean up
-
-	if _, err := tmpfile.Write(content); err != nil {
-		t.Fatal(err)
-	}
-	if err := tmpfile.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	args := []string{"--ca-cert=" + tmpfile.Name()}
+	args = append(args, fmt.Sprintf("--ca-cert=%s", caPEM))
 
 	apiClientMeta := &pluginutil.APIClientMeta{}
 	flags := apiClientMeta.FlagSet()
@@ -61,7 +61,7 @@ func TestBackend_PluginMain(t *testing.T) {
 	tlsConfig := apiClientMeta.GetTLSConfig()
 	tlsProviderFunc := pluginutil.VaultPluginTLSProvider(tlsConfig)
 
-	err = plugin.Serve(&plugin.ServeOpts{
+	err := logicalPlugin.Serve(&logicalPlugin.ServeOpts{
 		BackendFactoryFunc: mock.Factory,
 		TLSProviderFunc:    tlsProviderFunc,
 	})
@@ -71,31 +71,30 @@ func TestBackend_PluginMain(t *testing.T) {
 }
 
 func testConfig(t *testing.T) (*logical.BackendConfig, func()) {
-	coreConfig := &vault.CoreConfig{}
-
-	cluster := vault.NewTestCluster(t, coreConfig, true)
-	cluster.StartListeners()
+	cluster := vault.NewTestCluster(t, nil, &vault.TestClusterOptions{
+		HandlerFunc: vaulthttp.Handler,
+	})
+	cluster.Start()
 	cores := cluster.Cores
-
-	cores[0].Handler.Handle("/", http.Handler(cores[0].Core))
-	cores[1].Handler.Handle("/", http.Handler(cores[1].Core))
-	cores[2].Handler.Handle("/", http.Handler(cores[2].Core))
 
 	core := cores[0]
 
 	sys := vault.TestDynamicSystemView(core.Core)
 
 	config := &logical.BackendConfig{
-		Logger: nil,
+		Logger: logging.NewVaultLogger(log.Debug),
 		System: sys,
 		Config: map[string]string{
 			"plugin_name": "mock-plugin",
+			"plugin_type": "database",
 		},
 	}
 
-	vault.TestAddTestPlugin(t, core.Core, "mock-plugin", "TestBackend_PluginMain")
+	os.Setenv(pluginutil.PluginCACertPEMEnv, cluster.CACertPEMFile)
+
+	vault.TestAddTestPlugin(t, core.Core, "mock-plugin", consts.PluginTypeDatabase, "TestBackend_PluginMain", []string{}, "")
 
 	return config, func() {
-		cluster.CloseListeners()
+		cluster.Cleanup()
 	}
 }

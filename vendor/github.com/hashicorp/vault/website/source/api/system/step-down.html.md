@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/step-down - HTTP API"
-sidebar_current: "docs-http-system-step-down"
+sidebar_title: "<code>/sys/step-down</code>"
+sidebar_current: "api-http-system-step-down"
 description: |-
   The `/sys/step-down` endpoint causes the node to give up active status.
 ---
@@ -29,5 +30,5 @@ the path.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request PUT \
-    https://vault.rocks/v1/sys/step-down
+    http://127.0.0.1:8200/v1/sys/step-down
 ```

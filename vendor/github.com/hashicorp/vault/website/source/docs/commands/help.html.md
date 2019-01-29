@@ -1,6 +1,7 @@
 ---
 layout: "docs"
 page_title: "Path Help"
+sidebar_title: "<code>path-help</code>"
 sidebar_current: "docs-commands-path-help"
 description: |-
   The Vault CLI has a built-in help system that can be used to get help for not only the CLI itself, but also any paths that the CLI can be used with within Vault.
@@ -27,11 +28,11 @@ properly to execute this command to look up paths.
 Before using `path-help`, it is important to understand "paths" within Vault.
 Paths are the parameters used for `vault read`, `vault write`, etc. An
 example path is `secret/foo`, or `aws/config/root`. The paths available
-depend on the mounted secret backends. Because of this, the interactive
+depend on the enabled secrets engines. Because of this, the interactive
 help is an indispensable tool to finding what paths are supported.
 
 To discover what paths are supported, use `vault path-help <mount point>`.
-For example, if you mounted the AWS secret backend, you can use
+For example, if you mounted the AWS secrets engine, you can use
 `vault path-help aws` to find the paths supported by that backend. The paths
 will be shown with regular expressions, which can make them hard to
 parse, but they're also extremely exact.
@@ -45,7 +46,7 @@ the paths it supports.
 $ vault path-help secret
 ## DESCRIPTION
 
-The generic backend reads and writes arbitrary secrets to the backend.
+The key/value backend reads and writes arbitrary secrets to the backend.
 The secrets are encrypted/decrypted by Vault: they are never stored
 unencrypted in the backend and the backend never has an opportunity to
 see the unencrypted value.

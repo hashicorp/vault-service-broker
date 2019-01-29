@@ -1,6 +1,7 @@
 ---
 layout: "docs"
 page_title: "Using PGP, GPG, and Keybase"
+sidebar_title: "PGP, GPG, and Keybase"
 sidebar_current: "docs-concepts-pgp-gpg-keybase"
 description: |-
   Vault has the ability to integrate with OpenPGP-compatible programs like GPG
@@ -15,6 +16,14 @@ Vault has the ability to integrate with OpenPGP-compatible programs like GPG
 and services like Keybase.io to provide an additional layer of security when
 performing certain operations.  This page details the various PGP integrations,
 their use, and operation.
+
+Keybase.io support is available only in the command-line tool and not via the
+Vault HTTP API, tools that help with initialization should use the Keybase.io
+API in order to obtain the GPG keys needed for a secure initialization if you
+want them to use Keybase for keys.
+
+Once the Vault has been initialized, it is possible to use Keybase to decrypt
+the shards and unseal normally.
 
 ## Initializing with PGP
 One of the early fundamental problems when bootstrapping and initializing Vault
@@ -43,7 +52,7 @@ To generate unseal keys for Keybase users, Vault accepts the `keybase:` prefix
 to the `-pgp-keys` argument:
 
 ```
-$ vault init -key-shares=3 -key-threshold=2 \
+$ vault operator init -key-shares=3 -key-threshold=2 \
     -pgp-keys="keybase:jefferai,keybase:vishalnayak,keybase:sethvargo"
 ```
 
@@ -92,7 +101,7 @@ This is your unseal key in plain-text and should be guarded the same way you
 guard a password. Now you can enter your key to the `unseal` command:
 
 ```
-$ vault unseal
+$ vault operator unseal
 Key (will be hidden): ...
 ```
 
@@ -127,7 +136,7 @@ without ASCII armoring) or binary. Once saved to disk, the path to these files
 can be specified as an argument to the `-pgp-keys` flag.
 
 ```
-$ vault init -key-shares=3 -key-threshold=2 \
+$ vault operator init -key-shares=3 -key-threshold=2 \
     -pgp-keys="jeff.asc,vishal.asc,seth.asc"
 ```
 
@@ -172,6 +181,6 @@ This is your unseal key in plain-text and should be guarded the same way you
 guard a password. Now you can enter your key to the `unseal` command:
 
 ```
-$ vault unseal
+$ vault operator unseal
 Key (will be hidden): ...
 ```

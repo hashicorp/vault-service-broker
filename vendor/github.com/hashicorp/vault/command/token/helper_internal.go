@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mitchellh/go-homedir"
+	homedir "github.com/mitchellh/go-homedir"
 )
+
+var _ TokenHelper = (*InternalTokenHelper)(nil)
 
 // InternalTokenHelper fulfills the TokenHelper interface when no external
 // token-helper is configured, and avoids shelling out
@@ -21,7 +23,7 @@ type InternalTokenHelper struct {
 func (i *InternalTokenHelper) populateTokenPath() {
 	homePath, err := homedir.Dir()
 	if err != nil {
-		panic(fmt.Errorf("error getting user's home directory: %v", err))
+		panic(fmt.Sprintf("error getting user's home directory: %v", err))
 	}
 	i.tokenPath = homePath + "/.vault-token"
 }

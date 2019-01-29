@@ -69,8 +69,8 @@ func TestBroker_Bind_Unbind(t *testing.T) {
 	// Seed the broker with the results of provisioning an instance
 	// so binding can succeed.
 	env.Broker.instances["instance-id"] = &instanceInfo{
-		SpaceGUID:        "space-guid",
-		OrganizationGUID: "organization-guid",
+		SpaceGUID:           "space-guid",
+		OrganizationGUID:    "organization-guid",
 		ServiceInstanceGUID: "instance-id",
 	}
 
@@ -304,7 +304,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 		// This call is for listing mounts themselves.
 		case reqURL == "/v1/sys/mounts" && r.Method == "GET":
 			w.WriteHeader(200)
-			w.Write([]byte(`{
+			w.Write([]byte(`{"data": {
 				"aws": {
 					"type": "aws",
 					"description": "AWS keys",
@@ -325,7 +325,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 						"seal_wrap": false
 					}
 				}
-			}`))
+			}}`))
 			return
 
 		// These posts provide configs to the given endpoints, configs like:
@@ -358,11 +358,11 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			w.WriteHeader(204)
 			return
 
-		case reqURL == "/v1/sys/policy/cf-instance-id" && r.Method == "PUT":
+		case reqURL == "/v1/sys/policies/acl/cf-instance-id" && r.Method == "PUT":
 			w.WriteHeader(204)
 			return
 
-		case reqURL == "/v1/sys/policy/cf-instance-id" && r.Method == "DELETE":
+		case reqURL == "/v1/sys/policies/acl/cf-instance-id" && r.Method == "DELETE":
 			w.WriteHeader(204)
 			return
 

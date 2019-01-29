@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/generate-root - HTTP API"
-sidebar_current: "docs-http-system-generate-root"
+sidebar_title: "<code>/sys/generate-root</code>"
+sidebar_current: "api-http-system-generate-root"
 description: |-
   The `/sys/generate-root/` endpoints are used to create a new root key for
   Vault.
@@ -24,7 +25,7 @@ attempt.
 
 ```
 $ curl \
-    https://vault.rocks/v1/sys/generate-root/attempt
+    http://127.0.0.1:8200/v1/sys/generate-root/attempt
 ```
 
 ### Sample Response
@@ -35,7 +36,7 @@ $ curl \
   "nonce": "2dbd10f1-8528-6246-09e7-82b25b8aba63",
   "progress": 1,
   "required": 3,
-  "encoded_root_token": "",
+  "encoded_token": "",
   "pgp_fingerprint": "",
   "complete": false
 }
@@ -51,8 +52,7 @@ encode the final root token, it will never be returned.
 ## Start Root Token Generation
 
 This endpoint initializes a new root generation attempt. Only a single root
-generation attempt can take place at a time. One (and only one) of `otp` or
-`pgp_key` are required.
+generation attempt can take place at a time. 
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -60,29 +60,16 @@ generation attempt can take place at a time. One (and only one) of `otp` or
 
 ### Parameters
 
-- `otp` `(string: <required-unless-pgp>)` – Specifies a base64-encoded 16-byte
-  value. The raw bytes of the token will be XOR'd with this value before being
+- `pgp_key` `(string: <optional>)` – Specifies a base64-encoded PGP public key.
+  The raw bytes of the token will be encrypted with this value before being
   returned to the final unseal key provider.
-
-- `pgp_key` `(string: <required-unless-otp>)` – Specifies a base64-encoded PGP
-  public key. The raw bytes of the token will be encrypted with this value
-  before being returned to the final unseal key provider.
-
-### Sample Payload
-
-```json
-{
-  "otp": "CB23=="
-}
-```
 
 ### Sample Request
 
 ```
 $ curl \
     --request PUT \
-    --data @payload.json \
-    https://vault.rocks/v1/sys/generate-root/attempt    
+    http://127.0.0.1:8200/v1/sys/generate-root/attempt    
 ```
 
 ### Sample Response
@@ -93,8 +80,9 @@ $ curl \
   "nonce": "2dbd10f1-8528-6246-09e7-82b25b8aba63",
   "progress": 1,
   "required": 3,
-  "encoded_root_token": "",
-  "pgp_fingerprint": "816938b8a29146fbe245dd29e7cbaf8e011db793",
+  "encoded_token": "",
+  "otp": "2vPFYG8gUSW9npwzyvxXMug0",
+  "otp_length" :24,
   "complete": false
 }
 ```
@@ -113,7 +101,7 @@ progress made. This must be called to change the OTP or PGP key being used.
 ```
 $ curl \
     --request DELETE \
-    https://vault.rocks/v1/sys/generate-root/attempt
+    http://127.0.0.1:8200/v1/sys/generate-root/attempt
 ```
 
 ## Provide Key Share to Generate Root
@@ -149,7 +137,7 @@ nonce must be provided with each call.
 $ curl \
     --request PUT \
     --data @payload.json \
-    https://vault.rocks/v1/sys/generate-root/update
+    http://127.0.0.1:8200/v1/sys/generate-root/update
 ```
 
 ### Sample Response
@@ -165,6 +153,6 @@ status, and the encoded root token, if the attempt is complete.
   "required": 3,
   "pgp_fingerprint": "",
   "complete": true,
-  "encoded_root_token": "FPzkNBvwNDeFh4SmGA8c+w=="
+  "encoded_token": "FPzkNBvwNDeFh4SmGA8c+w=="
 }
 ```

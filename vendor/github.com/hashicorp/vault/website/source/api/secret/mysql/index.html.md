@@ -1,24 +1,25 @@
 ---
 layout: "api"
-page_title: "MySQL Secret Backend - HTTP API"
-sidebar_current: "docs-http-secret-mysql"
+page_title: "MySQL - Secrets Engines - HTTP API"
+sidebar_title: "MySQL <sup>DEPRECATED</sup>"
+sidebar_current: "api-http-secret-mysql"
 description: |-
-  This is the API documentation for the Vault MySQL secret backend.
+  This is the API documentation for the Vault MySQL secrets engine.
 ---
 
-# MySQL Secret Backend HTTP API
+# MySQL Secrets Engine (API)
 
-~> **Deprecation Note:** This backend is deprecated in favor of the
-combined databases backend added in v0.7.1. See the API documentation for
-the new implementation of this backend at
-[MySQL/MariaDB Database Plugin HTTP API](/api/secret/databases/mysql-maria.html).
+~> **Deprecation Note:** This secrets engine is deprecated in favor of the
+combined databases secrets engine added in v0.7.1. See the API documentation for
+the new implementation of this secrets engine at
+[MySQL/MariaDB database plugin HTTP API](/api/secret/databases/mysql-maria.html).
 
-This is the API documentation for the Vault MySQL secret backend. For general
-information about the usage and operation of the MySQL backend, please see
-the [Vault MySQL backend documentation](/docs/secrets/mysql/index.html).
+This is the API documentation for the Vault MySQL secrets engine. For general
+information about the usage and operation of the MySQL secrets engine, please
+see the [Vault MySQL documentation](/docs/secrets/mysql/index.html).
 
-This documentation assumes the MySQL backend is mounted at the `/mysql`
-path in Vault. Since it is possible to mount secret backends at any location,
+This documentation assumes the MySQL secrets engine is enabled at the `/mysql`
+path in Vault. Since it is possible to enable secrets engines at any location,
 please update your API calls accordingly.
 
 ## Configure Connection
@@ -59,7 +60,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/mysql/config/connection
+    http://127.0.0.1:8200/v1/mysql/config/connection
 ```
 
 ## Configure Lease
@@ -96,7 +97,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/mysql/config/lease
+    http://127.0.0.1:8200/v1/mysql/config/lease
 ```
 
 ## Create Role
@@ -148,7 +149,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/mysql/roles/my-role
+    http://127.0.0.1:8200/v1/mysql/roles/my-role
 ```
 
 ## Read Role
@@ -169,7 +170,7 @@ This endpoint queries the role definition.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/mysql/roles/my-role
+    http://127.0.0.1:8200/v1/mysql/roles/my-role
 ```
 
 ### Sample Response
@@ -197,7 +198,7 @@ returned, not any values.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request LIST \
-    https://vault.rocks/v1/mysql/roles
+    http://127.0.0.1:8200/v1/mysql/roles
 ```
 
 ### Sample Response
@@ -233,7 +234,7 @@ This endpoint deletes the role definition.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request DELETE \
-    https://vault.rocks/v1/mysql/roles/my-role
+    http://127.0.0.1:8200/v1/mysql/roles/my-role
 ```
 
 ## Generate Credentials
@@ -255,7 +256,7 @@ role.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/mysql/creds/my-role
+    http://127.0.0.1:8200/v1/mysql/creds/my-role
 ```
 
 ### Sample Response

@@ -1,14 +1,15 @@
 package consul
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/vault/logical"
 )
 
-func client(s logical.Storage) (*api.Client, error, error) {
-	conf, userErr, intErr := readConfigAccess(s)
+func (b *backend) client(ctx context.Context, s logical.Storage) (*api.Client, error, error) {
+	conf, userErr, intErr := b.readConfigAccess(ctx, s)
 	if intErr != nil {
 		return nil, nil, intErr
 	}

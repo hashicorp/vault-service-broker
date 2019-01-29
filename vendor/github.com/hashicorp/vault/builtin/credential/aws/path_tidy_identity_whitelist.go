@@ -1,10 +1,14 @@
 package awsauth
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/errwrap"
+	"github.com/hashicorp/vault/helper/consts"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -31,54 +35,79 @@ expiration, before it is removed from the backend storage.`,
 }
 
 // tidyWhitelistIdentity is used to delete entries in the whitelist that are expired.
-func (b *backend) tidyWhitelistIdentity(s logical.Storage, safety_buffer int) error {
-	grabbed := atomic.CompareAndSwapUint32(&b.tidyWhitelistCASGuard, 0, 1)
-	if grabbed {
-		defer atomic.StoreUint32(&b.tidyWhitelistCASGuard, 0)
-	} else {
-		return fmt.Errorf("identity whitelist tidy operation already running")
+func (b *backend) tidyWhitelistIdentity(ctx context.Context, req *logical.Request, safetyBuffer int) (*logical.Response, error) {
+	// If we are a performance standby forward the request to the active node
+	if b.System().ReplicationState().HasState(consts.ReplicationPerformanceStandby) {
+		return nil, logical.ErrReadOnly
 	}
 
-	bufferDuration := time.Duration(safety_buffer) * time.Second
-
-	identities, err := s.List("whitelist/identity/")
-	if err != nil {
-		return err
+	if !atomic.CompareAndSwapUint32(b.tidyWhitelistCASGuard, 0, 1) {
+		resp := &logical.Response{}
+		resp.AddWarning("Tidy operation already in progress.")
+		return resp, nil
 	}
 
-	for _, instanceID := range identities {
-		identityEntry, err := s.Get("whitelist/identity/" + instanceID)
-		if err != nil {
-			return fmt.Errorf("error fetching identity of instanceID %s: %s", instanceID, err)
-		}
+	s := req.Storage
 
-		if identityEntry == nil {
-			return fmt.Errorf("identity entry for instanceID %s is nil", instanceID)
-		}
+	go func() {
+		defer atomic.StoreUint32(b.tidyWhitelistCASGuard, 0)
 
-		if identityEntry.Value == nil || len(identityEntry.Value) == 0 {
-			return fmt.Errorf("found identity entry for instanceID %s but actual identity is empty", instanceID)
-		}
+		// Don't cancel when the original client request goes away
+		ctx = context.Background()
 
-		var result whitelistIdentity
-		if err := identityEntry.DecodeJSON(&result); err != nil {
-			return err
-		}
+		logger := b.Logger().Named("wltidy")
 
-		if time.Now().After(result.ExpirationTime.Add(bufferDuration)) {
-			if err := s.Delete("whitelist/identity" + instanceID); err != nil {
-				return fmt.Errorf("error deleting identity of instanceID %s from storage: %s", instanceID, err)
+		bufferDuration := time.Duration(safetyBuffer) * time.Second
+
+		doTidy := func() error {
+			identities, err := s.List(ctx, "whitelist/identity/")
+			if err != nil {
+				return err
 			}
-		}
-	}
 
-	return nil
+			for _, instanceID := range identities {
+				identityEntry, err := s.Get(ctx, "whitelist/identity/"+instanceID)
+				if err != nil {
+					return errwrap.Wrapf(fmt.Sprintf("error fetching identity of instanceID %q: {{err}}", instanceID), err)
+				}
+
+				if identityEntry == nil {
+					return fmt.Errorf("identity entry for instanceID %q is nil", instanceID)
+				}
+
+				if identityEntry.Value == nil || len(identityEntry.Value) == 0 {
+					return fmt.Errorf("found identity entry for instanceID %q but actual identity is empty", instanceID)
+				}
+
+				var result whitelistIdentity
+				if err := identityEntry.DecodeJSON(&result); err != nil {
+					return err
+				}
+
+				if time.Now().After(result.ExpirationTime.Add(bufferDuration)) {
+					if err := s.Delete(ctx, "whitelist/identity/"+instanceID); err != nil {
+						return errwrap.Wrapf(fmt.Sprintf("error deleting identity of instanceID %q from storage: {{err}}", instanceID), err)
+					}
+				}
+			}
+
+			return nil
+		}
+
+		if err := doTidy(); err != nil {
+			logger.Error("error running whitelist tidy", "error", err)
+			return
+		}
+	}()
+
+	resp := &logical.Response{}
+	resp.AddWarning("Tidy operation successfully started. Any information from the operation will be printed to Vault's server logs.")
+	return logical.RespondWithStatusCode(resp, req, http.StatusAccepted)
 }
 
 // pathTidyIdentityWhitelistUpdate is used to delete entries in the whitelist that are expired.
-func (b *backend) pathTidyIdentityWhitelistUpdate(
-	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return nil, b.tidyWhitelistIdentity(req.Storage, data.Get("safety_buffer").(int))
+func (b *backend) pathTidyIdentityWhitelistUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	return b.tidyWhitelistIdentity(ctx, req, data.Get("safety_buffer").(int))
 }
 
 const pathTidyIdentityWhitelistSyn = `

@@ -43,8 +43,12 @@ func main() {
 	if err != nil {
 		logger.Fatal("[ERR] failed to create vault api client", err)
 	}
+
 	vaultClient.SetAddress(config.VaultAddr)
 	vaultClient.SetToken(config.VaultToken)
+	if config.VaultNamespace != "" {
+		vaultClient.SetNamespace(config.VaultNamespace)
+	}
 
 	// Setup the broker
 	broker := &Broker{
@@ -180,6 +184,7 @@ type Configuration struct {
 	ServiceID          string   `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
 	VaultAddr          string   `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
 	VaultAdvertiseAddr string   `envconfig:"vault_advertise_addr"`
+	VaultNamespace     string   `envconfig:"vault_namespace"`
 	ServiceName        string   `envconfig:"service_name" default:"hashicorp-vault"`
 	ServiceDescription string   `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
 	PlanName           string   `envconfig:"plan_name" default:"shared"`

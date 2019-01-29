@@ -1,25 +1,26 @@
 ---
 layout: "api"
-page_title: "Cassandra Secret Backend - HTTP API"
-sidebar_current: "docs-http-secret-cassandra"
+page_title: "Cassandra - Secrets Engines - HTTP API"
+sidebar_title: "Cassandra <sup>DEPRECATED</sup>"
+sidebar_current: "api-http-secret-cassandra"
 description: |-
-  This is the API documentation for the Vault Cassandra secret backend.
+  This is the API documentation for the Vault Cassandra secrets engine.
 ---
 
-# Cassandra Secret Backend HTTP API
+# Cassandra Secrets Engine (API)
 
 ~> **Deprecation Note:** This backend is deprecated in favor of the
 combined databases backend added in v0.7.1. See the API documentation for
 the new implementation of this backend at
-[Cassandra Database Plugin HTTP API](/api/secret/databases/cassandra.html).
+[Cassandra database plugin HTTP API](/api/secret/databases/cassandra.html).
 
-This is the API documentation for the Vault Cassandra secret backend. For
+This is the API documentation for the Vault Cassandra secrets engine. For
 general information about the usage and operation of the Cassandra backend,
 please see the
 [Vault Cassandra backend documentation](/docs/secrets/cassandra/index.html).
 
 This documentation assumes the Cassandra backend is mounted at the `/cassandra`
-path in Vault. Since it is possible to mount secret backends at any location,
+path in Vault. Since it is possible to enable secrets engines at any location,
 please update your API calls accordingly.
 
 ## Configure Connection
@@ -62,6 +63,11 @@ Cassandra.
 
 - `connect_timeout` `(string: "5s")` – Specifies the connection timeout to use.
 
+- `consistency` `(string: "")` – Specifies the consistency option to use.  See
+  the [gocql
+  definition](https://github.com/gocql/gocql/blob/master/frame.go#L203) for
+  valid options.
+
 TLS works as follows:
 
 - If `tls` is set to true, the connection will use TLS; this happens
@@ -100,7 +106,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/cassandra/config/connection
+    http://127.0.0.1:8200/v1/cassandra/config/connection
 ```
 
 ## Create Role
@@ -151,7 +157,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/cassandra/roles/my-role
+    http://127.0.0.1:8200/v1/cassandra/roles/my-role
 ```
 
 ## Read Role
@@ -172,7 +178,7 @@ This endpoint queries the role definition.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/cassandra/roles/my-role
+    http://127.0.0.1:8200/v1/cassandra/roles/my-role
 ```
 
 ### Sample Response
@@ -207,7 +213,7 @@ This endpoint deletes the role definition.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request DELETE \
-    https://vault.rocks/v1/cassandra/roles/my-role
+    http://127.0.0.1:8200/v1/cassandra/roles/my-role
 ```
 
 ## Generate Credentials
@@ -229,7 +235,7 @@ role.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/cassandra/creds/my-role
+    http://127.0.0.1:8200/v1/cassandra/creds/my-role
 ```
 
 ### Sample Response

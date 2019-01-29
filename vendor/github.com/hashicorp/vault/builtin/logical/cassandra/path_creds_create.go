@@ -1,12 +1,13 @@
 package cassandra
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gocql/gocql"
-	"github.com/hashicorp/go-uuid"
+	uuid "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
@@ -31,12 +32,11 @@ func pathCredsCreate(b *backend) *framework.Path {
 	}
 }
 
-func (b *backend) pathCredsCreateRead(
-	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *backend) pathCredsCreateRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	name := data.Get("name").(string)
 
 	// Get the role
-	role, err := getRole(req.Storage, name)
+	role, err := getRole(ctx, req.Storage, name)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (b *backend) pathCredsCreateRead(
 	}
 
 	// Get our connection
-	session, err := b.DB(req.Storage)
+	session, err := b.DB(ctx, req.Storage)
 	if err != nil {
 		return nil, err
 	}

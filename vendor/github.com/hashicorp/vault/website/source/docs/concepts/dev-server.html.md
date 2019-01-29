@@ -1,6 +1,7 @@
 ---
 layout: "docs"
 page_title: "Dev Server Mode"
+sidebar_title: "'Dev' Server"
 sidebar_current: "docs-concepts-devserver"
 description: |-
   The dev server in Vault can be used for development or to experiment with Vault.
@@ -21,11 +22,12 @@ in-memory). It is only made for development or experimentation.
 
 ## Properties
 
-The properties of the dev server:
+The properties of the dev server (some can be overridden with command line
+flags or by specifying a configuration file):
 
   * **Initialized and unsealed** - The server will be automatically initialized
-    and unsealed. You don't need to use `vault unseal`. It is ready for use
-    immediately.
+    and unsealed. You don't need to use `vault operator unseal`. It is ready
+    for use immediately.
 
   * **In-memory storage** - All data is stored (encrypted) in-memory. Vault
     server doesn't require any file permissions.
@@ -44,7 +46,7 @@ The properties of the dev server:
 ## Use Case
 
 The dev server should be used for experimentation with Vault features, such
-as different authentication backends, secret backends, audit backends, etc.
+as different auth methods, secrets engines, audit devices, etc.
 If you're new to Vault, you may want to pick up with [Your First
 Secret](/intro/getting-started/first-secret.html) in
 our getting started guide.
