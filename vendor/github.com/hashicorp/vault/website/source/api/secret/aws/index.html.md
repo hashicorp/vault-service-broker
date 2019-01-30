@@ -1,19 +1,20 @@
 ---
 layout: "api"
-page_title: "AWS Secret Backend - HTTP API"
-sidebar_current: "docs-http-secret-aws"
+page_title: "AWS - Secrets Engines - HTTP API"
+sidebar_title: "AWS"
+sidebar_current: "api-http-secret-aws"
 description: |-
-  This is the API documentation for the Vault AWS secret backend.
+  This is the API documentation for the Vault AWS secrets engine.
 ---
 
-# AWS Secret Backend HTTP API
+# AWS Secrets Engine (API)
 
-This is the API documentation for the Vault AWS secret backend. For general
-information about the usage and operation of the AWS backend, please see the
-[Vault AWS backend documentation](/docs/secrets/aws/index.html).
+This is the API documentation for the Vault AWS secrets engine. For general
+information about the usage and operation of the AWS secrets engine, please see
+the [Vault AWS documentation](/docs/secrets/aws/index.html).
 
-This documentation assumes the AWS backend is mounted at the `/aws` path in
-Vault. Since it is possible to mount secret backends at any location, please
+This documentation assumes the AWS secrets engine is enabled at the `/aws` path
+in Vault. Since it is possible to enable secrets engines at any location, please
 update your API calls accordingly.
 
 ## Configure Root IAM Credentials
@@ -23,13 +24,17 @@ are multiple ways to pass root IAM credentials to the Vault server, specified
 below with the highest precedence first. If credentials already exist, this will
 overwrite them.
 
+The official AWS SDK is used for sourcing credentials from env vars, shared
+files, or IAM/ECS instances.
+
 - Static credentials provided to the API as a payload
 
 - Credentials in the `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, and `AWS_REGION`
   environment variables **on the server**
 
-- Querying the EC2 metadata service if the **Vault server** is on EC2 and has
-  querying capabilities
+- Shared credentials files
+
+- Assigned IAM role or ECS task role credentials
 
 At present, this endpoint does not confirm that the provided AWS credentials are
 valid AWS credentials with proper permissions.
@@ -40,11 +45,21 @@ valid AWS credentials with proper permissions.
 
 ### Parameters
 
+- `max_retries` `(int: -1)` - Number of max retries the client should use for
+  recoverable errors. The default (`-1`) falls back to the AWS SDK's default
+  behavior.
+
 - `access_key` `(string: <required>)` – Specifies the AWS access key ID.
 
 - `secret_key` `(string: <required>)` – Specifies the AWS secret access key.
 
-- `region` `(string: <required>)` – Specifies the AWS region.
+- `region` `(string: <optional>)` – Specifies the AWS region. If not set it
+  will use the `AWS_REGION` env var, `AWS_DEFAULT_REGION` env var, or
+  `us-east-1` in that order.
+
+- `iam_endpoint` `(string: <optional>)` – Specifies a custom HTTP IAM endpoint to use.
+
+- `sts_endpoint` `(string: <optional>)` – Specifies a custom HTTP STS endpoint to use.
 
 ### Sample Payload
 
@@ -63,12 +78,53 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/aws/config/root
+    http://127.0.0.1:8200/v1/aws/config/root
 ```
+
+## Rotate Root IAM Credentials
+
+When you have configured Vault with static credentials, you can use this
+endpoint to have Vault rotate the access key it used. Note that, due to AWS
+eventual consistency, after calling this endpoint, subsequent calls from Vault
+to AWS may fail for a few seconds until AWS becomes consistent again.
+
+
+In order to call this endpoint, Vault's AWS access key MUST be the only access
+key on the IAM user; otherwise, generation of a new access key will fail. Once
+this method is called, Vault will now be the only entity that knows the AWS
+secret key is used to access AWS.
+
+| Method   | Path                         | Produces               |
+| :------- | :--------------------------- | :--------------------- |
+| `POST`   | `/aws/config/rotate-root`    | `200 application/json` |
+
+### Parameters
+
+There are no parameters to this operation.
+
+### Sample Request
+
+```$ curl \
+    --header "X-Vault-Token: ..." \
+    --request POST \
+    http://127.0.0.1:8211/v1/aws/config/rotate-root
+```
+
+### Sample Response
+
+```json
+{
+  "data": {
+    "access_key": "AKIA..."
+  }
+}
+```
+
+The new access key Vault uses is returned by this operation.
 
 ## Configure Lease
 
-This endpoint configures lease settings for the AWS secret backend. It is
+This endpoint configures lease settings for the AWS secrets engine. It is
 optional, as there are default values for `lease` and `lease_max`.
 
 | Method   | Path                         | Produces               |
@@ -100,12 +156,12 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/aws/config/lease
+    http://127.0.0.1:8200/v1/aws/config/lease
 ```
 
 ## Read Lease
 
-This endpoint returns the current lease settings for the AWS secret backend.
+This endpoint returns the current lease settings for the AWS secrets engine.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -116,7 +172,7 @@ This endpoint returns the current lease settings for the AWS secret backend.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/aws/config/lease
+    http://127.0.0.1:8200/v1/aws/config/lease
 ```
 
 ### Sample Response
@@ -145,6 +201,40 @@ updated with the new attributes.
 - `name` `(string: <required>)` – Specifies the name of the role to create. This
   is part of the request URL.
 
+- `credential_type` `(string: <required>)` – Specifies the type of credential to be used when
+  retrieving credentials from the role. Must be one of `iam_user`,
+  `assumed_role`, or `federation_token`.
+
+- `role_arns` `(list: [])` – Specifies the ARNs of the AWS roles this Vault role
+  is allowed to assume. Required when `credential_type` is `assumed_role` and
+  prohibited otherwise. This is a comma-separated string or JSON array.
+
+- `policy_arns` `(list: [])` – Specifies the ARNs of the AWS managed policies to
+  be attached to IAM users when they are requested. Valid only when
+  `credential_type` is `iam_user`. When `credential_type` is `iam_user`, at
+  least one of `policy_arns` or `policy_document` must be specified. This is a
+  comma-separated string or JSON array.
+
+- `policy_document` `(string)` – The IAM policy document for the role. The
+  behavior depends on the credential type. With `iam_user`, the policy document
+  will be attached to the IAM user generated and augment the permissions the IAM
+  user has. With `assumed_role` and `federation_token`, the policy document will
+  act as a filter on what the credentials can do.
+
+- `default_sts_ttl` `(string)` - The default TTL for STS credentials. When a TTL is not
+  specified when STS credentials are requested, and a default TTL is specified
+  on the role, then this default TTL will be used. Valid only when
+  `credential_type` is one of `assumed_role` or `federation_token`.
+
+- `max_sts_ttl` `(string)` - The max allowed TTL for STS credentials (credentials
+  TTL are capped to `max_sts_ttl`). Valid only when `credential_type` is one of 
+  `assumed_role` or `federation_token`.
+
+Legacy parameters:
+
+These parameters are supported for backwards compatibility only. They cannot be
+mixed with the parameters listed above.
+
 - `policy` `(string: <required unless arn provided>)` – Specifies the IAM policy
   in JSON format.
 
@@ -158,7 +248,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/aws/roles/example-role
+    http://127.0.0.1:8200/v1/aws/roles/example-role
 ```
 
 ### Sample Payloads
@@ -167,7 +257,8 @@ Using an inline IAM policy:
 
 ```json
 {
-  "policy": "{\"Version\": \"...\"}",
+  "credential_type": "federation_token",
+  "policy_document": "{\"Version\": \"...\"}"
 }
 ```
 
@@ -175,7 +266,8 @@ Using an ARN:
 
 ```json
 {
-  "arn": "arn:aws:iam::123456789012:user/David"
+  "credential_type": "assumed_role",
+  "role_arns": "arn:aws:iam::123456789012:role/DeveloperRole"
 }
 ```
 
@@ -188,6 +280,9 @@ exist, a 404 is returned.
 | :------- | :--------------------------- | :--------------------- |
 | `GET`    | `/aws/roles/:name`           | `200 application/json` |
 
+If invalid role data was supplied to the role from an earlier version of Vault,
+then it will show up in the response as `invalid_data`.
+
 ### Parameters
 
 - `name` `(string: <required>)` – Specifies the name of the role to read. This
@@ -198,7 +293,7 @@ exist, a 404 is returned.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/aws/roles/example-role
+    http://127.0.0.1:8200/v1/aws/roles/example-role
 ```
 
 ### Sample Responses
@@ -208,24 +303,30 @@ For an inline IAM policy:
 ```json
 {
   "data": {
-    "policy": "{\"Version\": \"...\"}"
+    "policy_document": "{\"Version\": \"...\"}",
+    "policy_arns": [],
+    "credential_types": ["assumed_role"],
+    "role_arns": [],
   }
 }
 ```
 
-For an ARN:
+For a role ARN:
 
 ```json
 {
   "data": {
-    "arn": "arn:aws:iam::123456789012:user/David"
+    "policy_document": "",
+    "policy_arns": [],
+    "credential_types": ["assumed_role"],
+    "role_arns": ["arn:aws:iam::123456789012:role/example-role"]
   }
 }
 ```
 
 ## List Roles
 
-This endpoint lists all existing roles in the backend.
+This endpoint lists all existing roles in the secrets engine.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -237,7 +338,7 @@ This endpoint lists all existing roles in the backend.
 $ curl
     --header "X-Vault-Token: ..." \
     --request LIST \
-    https://vault.rocks/v1/aws/roles
+    http://127.0.0.1:8200/v1/aws/roles
 ```
 
 ### Sample Response
@@ -259,7 +360,7 @@ exist, a 404 is returned.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
-| `DELET`  | `/aws/roles/:name`           | `204 (empty body)`     |
+| `DELETE`  | `/aws/roles/:name`           | `204 (empty body)`     |
 
 ### Parameters
 
@@ -272,29 +373,51 @@ exist, a 404 is returned.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request DELETE \
-    https://vault.rocks/v1/aws/roles/example-role
+    http://127.0.0.1:8200/v1/aws/roles/example-role
 ```
 
-## Generate IAM Credentials
+## Generate Credentials
 
-This endpoint generates dynamic IAM credentials based on the named role. This
-role must be created before queried.
+This endpoint generates credentials based on the named role. This role must be
+created before queried.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
 | `GET`    | `/aws/creds/:name`           | `200 application/json` |
+| `GET`    | `/aws/sts/:name`             | `200 application/json` |
+
+The `/aws/creds` and `/aws/sts` endpoints are almost identical. The exception is
+when retrieving credentials for a role that was specified with the legacy `arn`
+or `policy` parameter. In this case, credentials retrieved through `/aws/sts`
+must be of either the `assumed_role` or `federation_token` types, and
+credentials retrieved through `/aws/creds` must be of the `iam_user` type.
 
 ### Parameters
 
 - `name` `(string: <required>)` – Specifies the name of the role to generate
-  credentials againts. This is part of the request URL.
+  credentials against. This is part of the request URL.
+- `role_arn` `(string)` – The ARN of the role to assume if `credential_type` on
+  the Vault role is `assumed_role`. Must match one of the allowed role ARNs in
+  the Vault role. Optional if the Vault role only allows a single AWS role ARN;
+  required otherwise.
+- `ttl` `(string: "3600s")` – Specifies the TTL for the use of the STS token.
+  This is specified as a string with a duration suffix. Valid only when
+  `credential_type` is `assumed_role` or `federation_token`. When not specified,
+  the `default_sts_ttl` set for the role will be used. If that is also not set, then
+  the default value of `3600s` will be used. AWS places limits
+  on the maximum TTL allowed. See the AWS documentation on the `DurationSeconds`
+  parameter for
+  [AssumeRole](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)
+  (for `assumed_role` credential types) and
+  [GetFederationToken](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetFederationToken.html)
+  (for `federation_token` credential types) for more details.
 
 ### Sample Request
 
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/aws/creds/example-role
+    http://127.0.0.1:8200/v1/aws/creds/example-role
 ```
 
 ### Sample Response
@@ -305,59 +428,6 @@ $ curl \
     "access_key": "AKIA...",
     "secret_key": "xlCs...",
     "security_token": null
-  }
-}
-```
-
-## Generate IAM with STS
-
-This generates a dynamic IAM credential with an STS token based on the named
-role.
-
-| Method   | Path                         | Produces               |
-| :------- | :--------------------------- | :--------------------- |
-| `POST`   | `/aws/sts/:name`             | `204 (empty body)`     |
-
-### Parameters
-
-- `name` `(string: <required>)` – Specifies the name of the role against which
-  to create this STS credential. This is part of the request URL.
-
-- `ttl` `(string: "3600s")` – Specifies the TTL for the use of the STS token.
-  This is specified as a string with a duration suffix. AWS documentation
-  excerpt: `The duration, in seconds, that the credentials should remain valid.
-  Acceptable durations for IAM user sessions range from 900 seconds (15
-  minutes) to 129600 seconds (36 hours), with 43200 seconds (12 hours) as the
-  default. Sessions for AWS account owners are restricted to a maximum of 3600
-  seconds (one hour). If the duration is longer than one hour, the session for
-  AWS account owners defaults to one hour.`
-
-### Sample Payload
-
-```json
-{
-  "ttl": "15m"
-}
-```
-
-### Sample Request
-
-```
-$ curl \
-    --header "X-Vault-Token: ..." \
-    --request POST \
-    --data @payload.json \
-    https://vault.rocks/v1/aws/sts/example-role
-```
-
-### Sample Response
-
-```json
-{
-  "data": {
-    "access_key": "AKIA...",
-    "secret_key": "xlCs...",
-    "security_token": "429255"
   }
 }
 ```

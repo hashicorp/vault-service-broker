@@ -1,6 +1,10 @@
 package consul
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -20,19 +24,41 @@ func secretToken(b *backend) *framework.Secret {
 		},
 
 		Renew:  b.secretTokenRenew,
-		Revoke: secretTokenRevoke,
+		Revoke: b.secretTokenRevoke,
 	}
 }
 
-func (b *backend) secretTokenRenew(
-	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+func (b *backend) secretTokenRenew(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	resp := &logical.Response{Secret: req.Secret}
+	roleRaw, ok := req.Secret.InternalData["role"]
+	if !ok {
+		return resp, nil
+	}
 
-	return framework.LeaseExtend(0, 0, b.System())(req, d)
+	role, ok := roleRaw.(string)
+	if !ok {
+		return resp, nil
+	}
+
+	entry, err := req.Storage.Get(ctx, "policy/"+role)
+	if err != nil {
+		return nil, errwrap.Wrapf("error retrieving role: {{err}}", err)
+	}
+	if entry == nil {
+		return logical.ErrorResponse(fmt.Sprintf("issuing role %q not found", role)), nil
+	}
+
+	var result roleConfig
+	if err := entry.DecodeJSON(&result); err != nil {
+		return nil, err
+	}
+	resp.Secret.TTL = result.TTL
+	resp.Secret.MaxTTL = result.MaxTTL
+	return resp, nil
 }
 
-func secretTokenRevoke(
-	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	c, userErr, intErr := client(req.Storage)
+func (b *backend) secretTokenRevoke(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	c, userErr, intErr := b.client(ctx, req.Storage)
 	if intErr != nil {
 		return nil, intErr
 	}
@@ -50,9 +76,26 @@ func secretTokenRevoke(
 		return nil, nil
 	}
 
-	_, err := c.ACL().Destroy(tokenRaw.(string), nil)
-	if err != nil {
-		return nil, err
+	var version string
+	versionRaw, ok := req.Secret.InternalData["version"]
+	if ok {
+		version = versionRaw.(string)
+	}
+
+	switch version {
+	case "":
+		// Pre 1.4 tokens
+		_, err := c.ACL().Destroy(tokenRaw.(string), nil)
+		if err != nil {
+			return nil, err
+		}
+	case tokenPolicyType:
+		_, err := c.ACL().TokenDelete(tokenRaw.(string), nil)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("Invalid version string in data: %s", version)
 	}
 
 	return nil, nil

@@ -1,6 +1,7 @@
 ---
 layout: "docs"
 page_title: "Zookeeper - Storage Backends - Configuration"
+sidebar_title: "Zookeeper"
 sidebar_current: "docs-configuration-storage-zookeeper"
 description: |-
   The Zookeeper storage backend is used to persist Vault's data in Zookeeper.
@@ -66,22 +67,29 @@ znodes and, potentially, take Vault out of service.
     ip:70.95.0.0/16
     ```
 
-This backend also supports the following high availability parameters. These are
-discussed in more detail in the [HA concepts page](/docs/concepts/ha.html).
+- `tls_enabled` `(bool: false)` – Specifies if TLS communication with the Zookeeper
+   backend has to be enabled.
 
-- `cluster_addr` `(string: "")` – Specifies the address to advertise to other
-  Vault servers in the cluster for request forwarding. This can also be provided
-  via the environment variable `VAULT_CLUSTER_ADDR`. This is a full URL, like
-  `redirect_addr`, but Vault will ignore the scheme (all cluster members always
-  use TLS with a private key/certificate).
+- `tls_ca_file` `(string: "")` – Specifies the path to the CA certificate file used
+  for Zookeeper communication. Multiple CA certificates can be provided in the same file.
 
-- `disable_clustering` `(bool: false)` – Specifies whether clustering features
-  such as request forwarding are enabled. Setting this to true on one Vault node
-  will disable these features _only when that node is the active node_.
+- `tls_cert_file` `(string: "")` (optional) – Specifies the path to the
+  client certificate for Zookeeper communication.
 
-- `redirect_addr` `(string: <required>)` – Specifies the address (full URL) to
-  advertise to other Vault servers in the cluster for client redirection. This
-  can also be provided via the environment variable `VAULT_REDIRECT_ADDR`.
+- `tls_key_file` `(string: "")` – Specifies the path to the private key for
+  Zookeeper communication.
+
+- `tls_min_version` `(string: "tls12")` – Specifies the minimum TLS version to
+  use. Accepted values are `"tls10"`, `"tls11"` or `"tls12"`.
+
+- `tls_skip_verify` `(bool: false)` – Specifies if the TLS host verification
+  should be disabled. It is highly discouraged that you disable this option.
+
+- `tls_verify_ip` `(bool: false)` - This property comes into play only when
+  'tls_skip_verify' is set to false. When 'tls_verify_ip' is set to 'true', the
+  zookeeper server's IP is verified in the presented certificates CN/SAN entry. 
+  When set to 'false' the server's DNS name is verified in the certificates CN/SAN entry.
+
 
 ## `zookeeper` Examples
 
@@ -119,6 +127,27 @@ for the ACL check.
 ```hcl
 storage "zookeeper" {
   znode_owner = "ip:127.0.0.1"
+}
+```
+
+### zNode connection over TLS.
+
+This example instructs Vault to connect to Zookeeper using the provided TLS configuration. The host verification will happen with the presented certificate using the servers IP because 'tls_verify_ip' is set to true.
+
+```hcl
+storage "zookeeper" {
+  address = "host1.com:5200,host2.com:5200,host3.com:5200"
+  path = "vault_path_on_zk/"
+  znode_owner = "digest:vault_user:digestvalueforpassword="
+  auth_info = "digest:vault_user:thisisthepassword"
+  redirect_addr = "http://localhost:8200"
+  tls_verify_ip = "true"
+  tls_enabled= "true"
+  tls_min_version= "tls12"
+  tls_cert_file = "/path/to/the/cert/file/zkcert.pem"
+  tls_key_file = "/path/to/the/key/file/zkkey.pem"
+  tls_skip_verify= "false"
+  tls_ca_file= "/path/to/the/ca/file/ca.pem"
 }
 ```
 

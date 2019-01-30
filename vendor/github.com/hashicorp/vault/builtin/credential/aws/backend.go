@@ -1,6 +1,7 @@
 package awsauth
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -8,16 +9,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/hashicorp/vault/helper/awsutil"
+	"github.com/hashicorp/vault/helper/consts"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
+	cache "github.com/patrickmn/go-cache"
 )
 
-func Factory(conf *logical.BackendConfig) (logical.Backend, error) {
+func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
 	b, err := Backend(conf)
 	if err != nil {
 		return nil, err
 	}
-	if err := b.Setup(conf); err != nil {
+	if err := b.Setup(ctx, conf); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -36,14 +40,14 @@ type backend struct {
 	blacklistMutex sync.RWMutex
 
 	// Guards the blacklist/whitelist tidy functions
-	tidyBlacklistCASGuard uint32
-	tidyWhitelistCASGuard uint32
+	tidyBlacklistCASGuard *uint32
+	tidyWhitelistCASGuard *uint32
 
 	// Duration after which the periodic function of the backend needs to
 	// tidy the blacklist and whitelist entries.
 	tidyCooldownPeriod time.Duration
 
-	// nextTidyTime holds the time at which the periodic func should initiatite
+	// nextTidyTime holds the time at which the periodic func should initiate
 	// the tidy operations. This is set by the periodicFunc based on the value
 	// of tidyCooldownPeriod.
 	nextTidyTime time.Time
@@ -60,6 +64,11 @@ type backend struct {
 	// will be flushed. The empty STS role signifies the master account
 	IAMClientsMap map[string]map[string]*iam.IAM
 
+	// Map of AWS unique IDs to the full ARN corresponding to that unique ID
+	// This avoids the overhead of an AWS API hit for every login request
+	// using the IAM auth method when bound_iam_principal_arn contains a wildcard
+	iamUserIdToArnCache *cache.Cache
+
 	// AWS Account ID of the "default" AWS credentials
 	// This cache avoids the need to call GetCallerIdentity repeatedly to learn it
 	// We can't store this because, in certain pathological cases, it could change
@@ -67,16 +76,19 @@ type backend struct {
 	// accounts using their IAM instance profile to get their credentials.
 	defaultAWSAccountID string
 
-	resolveArnToUniqueIDFunc func(logical.Storage, string) (string, error)
+	resolveArnToUniqueIDFunc func(context.Context, logical.Storage, string) (string, error)
 }
 
 func Backend(conf *logical.BackendConfig) (*backend, error) {
 	b := &backend{
 		// Setting the periodic func to be run once in an hour.
 		// If there is a real need, this can be made configurable.
-		tidyCooldownPeriod: time.Hour,
-		EC2ClientsMap:      make(map[string]map[string]*ec2.EC2),
-		IAMClientsMap:      make(map[string]map[string]*iam.IAM),
+		tidyCooldownPeriod:    time.Hour,
+		EC2ClientsMap:         make(map[string]map[string]*ec2.EC2),
+		IAMClientsMap:         make(map[string]map[string]*iam.IAM),
+		iamUserIdToArnCache:   cache.New(7*24*time.Hour, 24*time.Hour),
+		tidyBlacklistCASGuard: new(uint32),
+		tidyWhitelistCASGuard: new(uint32),
 	}
 
 	b.resolveArnToUniqueIDFunc = b.resolveArnToRealUniqueId
@@ -92,6 +104,9 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			LocalStorage: []string{
 				"whitelist/identity/",
 			},
+			SealWrapStorage: []string{
+				"config/client",
+			},
 		},
 		Paths: []*framework.Path{
 			pathLogin(b),
@@ -101,6 +116,7 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			pathRoleTag(b),
 			pathConfigClient(b),
 			pathConfigCertificate(b),
+			pathConfigIdentity(b),
 			pathConfigSts(b),
 			pathListSts(b),
 			pathConfigTidyRoletagBlacklist(b),
@@ -113,8 +129,8 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			pathIdentityWhitelist(b),
 			pathTidyIdentityWhitelist(b),
 		},
-
-		Invalidate: b.invalidate,
+		Invalidate:  b.invalidate,
+		BackendType: logical.TypeCredential,
 	}
 
 	return b, nil
@@ -128,34 +144,38 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 // not once in a minute, but once in an hour, controlled by 'tidyCooldownPeriod'.
 // Tidying of blacklist and whitelist are by default enabled. This can be
 // changed using `config/tidy/roletags` and `config/tidy/identities` endpoints.
-func (b *backend) periodicFunc(req *logical.Request) error {
+func (b *backend) periodicFunc(ctx context.Context, req *logical.Request) error {
 	// Run the tidy operations for the first time. Then run it when current
 	// time matches the nextTidyTime.
 	if b.nextTidyTime.IsZero() || !time.Now().Before(b.nextTidyTime) {
-		// safety_buffer defaults to 180 days for roletag blacklist
-		safety_buffer := 15552000
-		tidyBlacklistConfigEntry, err := b.lockedConfigTidyRoleTags(req.Storage)
-		if err != nil {
-			return err
-		}
-		skipBlacklistTidy := false
-		// check if tidying of role tags was configured
-		if tidyBlacklistConfigEntry != nil {
-			// check if periodic tidying of role tags was disabled
-			if tidyBlacklistConfigEntry.DisablePeriodicTidy {
-				skipBlacklistTidy = true
+		if b.System().LocalMount() || !b.System().ReplicationState().HasState(consts.ReplicationPerformanceSecondary) {
+			// safety_buffer defaults to 180 days for roletag blacklist
+			safety_buffer := 15552000
+			tidyBlacklistConfigEntry, err := b.lockedConfigTidyRoleTags(ctx, req.Storage)
+			if err != nil {
+				return err
 			}
-			// overwrite the default safety_buffer with the configured value
-			safety_buffer = tidyBlacklistConfigEntry.SafetyBuffer
-		}
-		// tidy role tags if explicitly not disabled
-		if !skipBlacklistTidy {
-			b.tidyBlacklistRoleTag(req.Storage, safety_buffer)
+			skipBlacklistTidy := false
+			// check if tidying of role tags was configured
+			if tidyBlacklistConfigEntry != nil {
+				// check if periodic tidying of role tags was disabled
+				if tidyBlacklistConfigEntry.DisablePeriodicTidy {
+					skipBlacklistTidy = true
+				}
+				// overwrite the default safety_buffer with the configured value
+				safety_buffer = tidyBlacklistConfigEntry.SafetyBuffer
+			}
+			// tidy role tags if explicitly not disabled
+			if !skipBlacklistTidy {
+				b.tidyBlacklistRoleTag(ctx, req, safety_buffer)
+			}
 		}
 
-		// reset the safety_buffer to 72h
-		safety_buffer = 259200
-		tidyWhitelistConfigEntry, err := b.lockedConfigTidyIdentities(req.Storage)
+		// We don't check for replication state for whitelist identities as
+		// these are locally stored
+
+		safety_buffer := 259200
+		tidyWhitelistConfigEntry, err := b.lockedConfigTidyIdentities(ctx, req.Storage)
 		if err != nil {
 			return err
 		}
@@ -171,7 +191,7 @@ func (b *backend) periodicFunc(req *logical.Request) error {
 		}
 		// tidy identities if explicitly not disabled
 		if !skipWhitelistTidy {
-			b.tidyWhitelistIdentity(req.Storage, safety_buffer)
+			b.tidyWhitelistIdentity(ctx, req, safety_buffer)
 		}
 
 		// Update the time at which to run the tidy functions again.
@@ -180,7 +200,7 @@ func (b *backend) periodicFunc(req *logical.Request) error {
 	return nil
 }
 
-func (b *backend) invalidate(key string) {
+func (b *backend) invalidate(ctx context.Context, key string) {
 	switch key {
 	case "config/client":
 		b.configMutex.Lock()
@@ -193,7 +213,7 @@ func (b *backend) invalidate(key string) {
 
 // Putting this here so we can inject a fake resolver into the backend for unit testing
 // purposes
-func (b *backend) resolveArnToRealUniqueId(s logical.Storage, arn string) (string, error) {
+func (b *backend) resolveArnToRealUniqueId(ctx context.Context, s logical.Storage, arn string) (string, error) {
 	entity, err := parseIamArn(arn)
 	if err != nil {
 		return "", err
@@ -211,18 +231,18 @@ func (b *backend) resolveArnToRealUniqueId(s logical.Storage, arn string) (strin
 	// Sigh
 	region := getAnyRegionForAwsPartition(entity.Partition)
 	if region == nil {
-		return "", fmt.Errorf("Unable to resolve partition %q to a region", entity.Partition)
+		return "", fmt.Errorf("unable to resolve partition %q to a region", entity.Partition)
 	}
-	iamClient, err := b.clientIAM(s, region.ID(), entity.AccountNumber)
+	iamClient, err := b.clientIAM(ctx, s, region.ID(), entity.AccountNumber)
 	if err != nil {
-		return "", err
+		return "", awsutil.AppendLogicalError(err)
 	}
 
 	switch entity.Type {
 	case "user":
 		userInfo, err := iamClient.GetUser(&iam.GetUserInput{UserName: &entity.FriendlyName})
 		if err != nil {
-			return "", err
+			return "", awsutil.AppendLogicalError(err)
 		}
 		if userInfo == nil {
 			return "", fmt.Errorf("got nil result from GetUser")
@@ -231,7 +251,7 @@ func (b *backend) resolveArnToRealUniqueId(s logical.Storage, arn string) (strin
 	case "role":
 		roleInfo, err := iamClient.GetRole(&iam.GetRoleInput{RoleName: &entity.FriendlyName})
 		if err != nil {
-			return "", err
+			return "", awsutil.AppendLogicalError(err)
 		}
 		if roleInfo == nil {
 			return "", fmt.Errorf("got nil result from GetRole")
@@ -240,7 +260,7 @@ func (b *backend) resolveArnToRealUniqueId(s logical.Storage, arn string) (strin
 	case "instance-profile":
 		profileInfo, err := iamClient.GetInstanceProfile(&iam.GetInstanceProfileInput{InstanceProfileName: &entity.FriendlyName})
 		if err != nil {
-			return "", err
+			return "", awsutil.AppendLogicalError(err)
 		}
 		if profileInfo == nil {
 			return "", fmt.Errorf("got nil result from GetInstanceProfile")
@@ -268,12 +288,21 @@ func getAnyRegionForAwsPartition(partitionId string) *endpoints.Region {
 }
 
 const backendHelp = `
-aws-ec2 auth backend takes in PKCS#7 signature of an AWS EC2 instance and a client
-created nonce to authenticates the EC2 instance with Vault.
+The aws auth method uses either AWS IAM credentials or AWS-signed EC2 metadata
+to authenticate clients, which are IAM principals or EC2 instances.
 
 Authentication is backed by a preconfigured role in the backend. The role
 represents the authorization of resources by containing Vault's policies.
 Role can be created using 'role/<role>' endpoint.
+
+Authentication of IAM principals, either IAM users or roles, is done using a
+specifically signed AWS API request using clients' AWS IAM credentials. IAM
+principals can then be assigned to roles within Vault. This is known as the
+"iam" auth method.
+
+Authentication of EC2 instances is done using either a signed PKCS#7 document
+or a detached RSA signature of an AWS EC2 instance's identity document along
+with a client-created nonce. This is known as the "ec2" auth method.
 
 If there is need to further restrict the capabilities of the role on the instance
 that is using the role, 'role_tag' option can be enabled on the role, and a tag

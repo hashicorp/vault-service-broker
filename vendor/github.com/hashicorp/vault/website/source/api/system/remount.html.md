@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/remount - HTTP API"
-sidebar_current: "docs-http-system-remount"
+sidebar_title: "<code>/sys/remount</code>"
+sidebar_current: "api-http-system-remount"
 description: |-
   The '/sys/remount' endpoint is used remount a mounted backend to a new endpoint.
 ---
@@ -10,9 +11,9 @@ description: |-
 
 The `/sys/remount` endpoint is used remount a mounted backend to a new endpoint.
 
-## Remount Backend
+## Move Backend
 
-This endpoint remounts an already-mounted backend to a new mount point.
+This endpoint moves an already-mounted backend to a new mount point.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -40,5 +41,5 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/sys/remount
+    http://127.0.0.1:8200/v1/sys/remount
 ```

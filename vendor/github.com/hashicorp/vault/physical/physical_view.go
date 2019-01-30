@@ -1,8 +1,13 @@
 package physical
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"strings"
+)
+
+var (
+	ErrRelativePath = errors.New("relative paths not supported")
 )
 
 // View represents a prefixed view of a physical backend
@@ -10,6 +15,9 @@ type View struct {
 	backend Backend
 	prefix  string
 }
+
+// Verify View satisfies the correct interfaces
+var _ Backend = (*View)(nil)
 
 // NewView takes an underlying physical backend and returns
 // a view of it that can only operate with the given prefix.
@@ -21,19 +29,19 @@ func NewView(backend Backend, prefix string) *View {
 }
 
 // List the contents of the prefixed view
-func (v *View) List(prefix string) ([]string, error) {
+func (v *View) List(ctx context.Context, prefix string) ([]string, error) {
 	if err := v.sanityCheck(prefix); err != nil {
 		return nil, err
 	}
-	return v.backend.List(v.expandKey(prefix))
+	return v.backend.List(ctx, v.expandKey(prefix))
 }
 
 // Get the key of the prefixed view
-func (v *View) Get(key string) (*Entry, error) {
+func (v *View) Get(ctx context.Context, key string) (*Entry, error) {
 	if err := v.sanityCheck(key); err != nil {
 		return nil, err
 	}
-	entry, err := v.backend.Get(v.expandKey(key))
+	entry, err := v.backend.Get(ctx, v.expandKey(key))
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +59,7 @@ func (v *View) Get(key string) (*Entry, error) {
 }
 
 // Put the entry into the prefix view
-func (v *View) Put(entry *Entry) error {
+func (v *View) Put(ctx context.Context, entry *Entry) error {
 	if err := v.sanityCheck(entry.Key); err != nil {
 		return err
 	}
@@ -60,21 +68,21 @@ func (v *View) Put(entry *Entry) error {
 		Key:   v.expandKey(entry.Key),
 		Value: entry.Value,
 	}
-	return v.backend.Put(nested)
+	return v.backend.Put(ctx, nested)
 }
 
 // Delete the entry from the prefix view
-func (v *View) Delete(key string) error {
+func (v *View) Delete(ctx context.Context, key string) error {
 	if err := v.sanityCheck(key); err != nil {
 		return err
 	}
-	return v.backend.Delete(v.expandKey(key))
+	return v.backend.Delete(ctx, v.expandKey(key))
 }
 
 // sanityCheck is used to perform a sanity check on a key
 func (v *View) sanityCheck(key string) error {
 	if strings.Contains(key, "..") {
-		return fmt.Errorf("key cannot be relative path")
+		return ErrRelativePath
 	}
 	return nil
 }

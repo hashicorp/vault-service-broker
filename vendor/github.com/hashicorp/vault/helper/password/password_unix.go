@@ -1,4 +1,4 @@
-// +build linux darwin freebsd netbsd openbsd
+// +build linux darwin freebsd netbsd openbsd dragonfly
 
 package password
 
@@ -12,7 +12,7 @@ import (
 func read(f *os.File) (string, error) {
 	fd := int(f.Fd())
 	if !terminal.IsTerminal(fd) {
-		return "", fmt.Errorf("File descriptor %d is not a terminal", fd)
+		return "", fmt.Errorf("file descriptor %d is not a terminal", fd)
 	}
 
 	oldState, err := terminal.MakeRaw(fd)

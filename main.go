@@ -43,8 +43,12 @@ func main() {
 	if err != nil {
 		logger.Fatal("[ERR] failed to create vault api client", err)
 	}
+
 	vaultClient.SetAddress(config.VaultAddr)
 	vaultClient.SetToken(config.VaultToken)
+	if config.VaultNamespace != "" {
+		vaultClient.SetNamespace(config.VaultNamespace)
+	}
 
 	// Setup the broker
 	broker := &Broker{
@@ -185,14 +189,15 @@ type Configuration struct {
 	UAAInsecureAllowAnySigningMethod bool   `envconfig:"uaa_insecure_allow_any_signing_method"`
 
 	// Also optional
-	Port                string   `envconfig:"port" default:":8000"`
-	ServiceID           string   `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
-	VaultAddr           string   `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
-	VaultAdvertiseAddr  string   `envconfig:"vault_advertise_addr"`
-	ServiceName         string   `envconfig:"service_name" default:"hashicorp-vault"`
-	ServiceDescription  string   `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
-	PlanName            string   `envconfig:"plan_name" default:"shared"`
-	PlanDescription     string   `envconfig:"plan_description" default:"Secure access to Vault's storage and transit backends"`
+	Port               string `envconfig:"port" default:":8000"`
+	ServiceID          string `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
+	VaultAddr          string `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
+	VaultAdvertiseAddr string `envconfig:"vault_advertise_addr"`
+	VaultNamespace     string `envconfig:"vault_namespace"`
+	ServiceName        string `envconfig:"service_name" default:"hashicorp-vault"`
+	ServiceDescription string `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
+	PlanName           string `envconfig:"plan_name" default:"shared"`
+	PlanDescription    string `envconfig:"plan_description" default:"Secure access to Vault's storage and transit backends"`
 
 	PlanMetadataName    string   `envconfig:"plan_metadata_name" default:"Architecture and Assumptions"`
 	PlanBullets         []string `envconfig:"plan_bullets" default:"The Vault server is already running and is accessible by the broker.,The Vault server may be used by other applications (it is not exclusively tied to Cloud Foundry).,All instances of an application will share a token. This goes against the recommended Vault usage. This is a limitation of the Cloud Foundry service broker model.,Any Vault operations performed outside of Cloud Foundry will require users to rebind their instances."`
@@ -203,8 +208,8 @@ type Configuration struct {
 	DocumentationUrl    string   `envconfig:"documentation_url" default:"https://www.vaultproject.io/"`
 	SupportUrl          string   `envconfig:"support_url" default:"https://support.hashicorp.com/"`
 
-	ServiceTags         []string `envconfig:"service_tags"`
-	VaultRenew          bool     `envconfig:"vault_renew" default:"true"`
+	ServiceTags []string `envconfig:"service_tags"`
+	VaultRenew  bool     `envconfig:"vault_renew" default:"true"`
 }
 
 func (c *Configuration) Validate() error {

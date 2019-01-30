@@ -6,18 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="<%= description_for(current_page) %>">
 
-    <link rel="apple-touch-icon" sizes="180x180" href="<%= image_path("favicons/apple-touch-icon.png") %>">
-    <link rel="icon" type="image/png" href="<%= image_path("favicons/favicon-32x32.png") %>" sizes="32x32">
-    <link rel="icon" type="image/png" href="<%= image_path("favicons/favicon-16x16.png") %>" sizes="16x16">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/img/favicons/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="/img/favicons/favicon-16x16.png" sizes="16x16">
     <link rel="manifest" href="/android-manifest.json">
-    <link rel="mask-icon" href="<%= image_path("favicons/safari-pinned-tab.svg") %>" color="#23414a">
+    <link rel="mask-icon" href="/img/favicons/safari-pinned-tab.svg" color="#23414a">
     <meta name="msapplication-config" content="/microsoft-tile.xml" />
     <meta name="theme-color" content="#ffffff">
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@HashiCorp" />
     <meta name="twitter:creator" content="@HashiCorp" />
-    <meta property="og:url" content="<%= File.join(base_url, current_page.url) %>" />
+    <meta property="og:url" content="<%= File.join(config[:base_url], current_page.url) %>" />
     <meta property="og:title" content="<%= title_for(current_page) %>" />
     <meta property="og:site_name" content="Vault by HashiCorp"/>
     <meta property="og:image" content="<%= image_url("og-image.png") %>"/>
@@ -27,114 +27,39 @@
 
     <title><%= title_for(current_page) %></title>
 
-    <%= stylesheet_link_tag "application" %>
+    <!-- Typekit script to import Klavika and Open Sans font -->
+    <script src="https://use.typekit.net/ypp5bnp.js"></script>
+    <script>try{Typekit.load({ async: false });}catch(e){}</script>
 
-    <!--[if lt IE 9]>
-      <%= javascript_include_tag "ie-compat" %>
-    <![endif]-->
-    <%= javascript_include_tag "application" %>
+    <link rel='stylesheet' href='/css/index.css' />
 
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-NR2SD7C');</script>
-
-    <!-- Typekit script to import Klavika font -->
-    <script src="https://use.typekit.net/wxf7mfi.js"></script>
-    <script>try{Typekit.load({ async: true });}catch(e){}</script>
+    <script>
+      // segment analytics
+      !function(){var analytics=window.analytics=window.analytics||[];if(!analytics.initialize)if(analytics.invoked)window.console&&console.error&&console.error("Segment snippet included twice.");else{analytics.invoked=!0;analytics.methods=["trackSubmit","trackClick","trackLink","trackForm","pageview","identify","reset","group","track","ready","alias","debug","page","once","off","on"];analytics.factory=function(t){return function(){var e=Array.prototype.slice.call(arguments);e.unshift(t);analytics.push(e);return analytics}};for(var t=0;t<analytics.methods.length;t++){var e=analytics.methods[t];analytics[e]=analytics.factory(e)}analytics.load=function(t,e){var n=document.createElement("script");n.type="text/javascript";n.async=!0;n.src="https://cdn.segment.com/analytics.js/v1/"+t+"/analytics.min.js";var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(n,a);analytics._loadOptions=e};analytics.SNIPPET_VERSION="4.1.0";
+      analytics.page({
+        properties: {
+          url: window.location.href,
+          path: window.location.pathname,
+          search: window.location.search,
+          title: document.title,
+          referrer: document.referrer
+        }
+      });
+      }}();
+    </script>
 
     <%= yield_content :head %>
   </head>
 
   <body id="<%= body_id_for(current_page) %>" class="<%= body_classes_for(current_page) %>">
-
-    <%= mega_nav :vault %>
-
-    <div id="header" class="navigation navbar-static-top hidden-print">
-      <div class="container">
-        <div class="row">
-          <div class="col-xs-12">
-            <div class="navbar-header">
-              <div class="navbar-brand">
-                <a href="/" data-turbolinks="false">
-                  <%= inline_svg "logo-text.svg", height: 50, class: "logo" %>
-                </a>
-              </div>
-              <button class="navbar-toggle" type="button">
-                <span class="sr-only">Toggle navigation</span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-                <span class="icon-bar"></span>
-              </button>
-            </div>
-            <div class="buttons hidden-xs">
-              <nav class="navigation-links" role="navigation">
-                <ul class="main-links nav navbar-nav navbar-right">
-                  <li><a href="/intro/index.html">Intro</a></li>
-                  <li><a href="/docs/index.html">Docs</a></li>
-                  <li><a href="/guides/index.html">Guides</a></li>
-                  <li><a href="/api/index.html">API</a></li>
-                  <li><a href="https://www.hashicorp.com/vault.html?utm_source=oss&utm_medium=header-nav&utm_campaign=vault">Enterprise</a></li>
-                  <li>
-                    <a href="/downloads.html">
-                      <%= inline_svg "download.svg" %> Download
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://github.com/hashicorp/vault">
-                      <%= inline_svg "github.svg" %> GitHub
-                    </a>
-                  </li>
-                </ul>
-              </nav>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <%= partial "layouts/sidebar" %>
-
-    <%= yield %>
-
-    <%= partial "ember_templates" %>
-    <%= partial "ember_steps" %>
-
-    <div id="footer" class="navigation hidden-print">
-      <div class="container">
-        <div class="row">
-          <div class="col-xs-12">
-            <ul class="footer-links nav navbar-nav">
-              <li><a href="/intro/index.html">Intro</a></li>
-              <li><a href="/docs/index.html">Docs</a></li>
-              <li><a href="/guides/index.html">Guides</a></li>
-              <li><a href="/api/index.html">API</a></li>
-              <li><a href="/community.html">Community</a></li>
-              <li><a href="/security.html">Security</a></li>
-              <li><a href="/assets/files/press-kit.zip">Press Kit</a></li>
-            </ul>
-            <ul class="footer-links nav navbar-nav navbar-right">
-              <li><a href="<%= github_url :current_page %>">Edit this page</a></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <script>
-      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-      ga('create', 'UA-62364009-1', 'vaultproject.io');
-      ga('require', 'linkid');
-      ga('send', 'pageview', location.pathname);
-    </script>
+    <hashi-mega-nav title="<%= defined?(@meganav_title).nil? ? '' : @meganav_title %>" _data="<%= encode(dato.mega_nav) %>"></hashi-mega-nav>
+    <div id="consent-manager"></div>
+    <main><%= yield %></main>
+    <hashi-footer _data="<%= encode(dato.global_footer) %>"></hashi-footer>
 
     <%= yield_content :scripts %>
+    <script src='/js/consent-manager.js'></script>
+    <script src='/js/main.js'></script>
 
     <script type="application/ld+json">
       {
@@ -144,10 +69,7 @@
         "alternateName": "Vault by HashiCorp",
         "manufacturer": "HashiCorp",
         "url": "https://www.vaultproject.io",
-        "logo": "<%= File.join(base_url, image_path("logo-hashicorp.svg")) %>",
-        "sameAs": [
-          "https://github.com/hashicorp/vault"
-        ]
+        "logo": "<%= File.join(config[:base_url], '/img/logo-hashicorp.svg') %>"
       }
     </script>
   </body>

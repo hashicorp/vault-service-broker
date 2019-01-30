@@ -1,11 +1,12 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"time"
 
-	"github.com/fatih/structs"
+	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -42,8 +43,7 @@ API-compatible authentication server.`,
 	}
 }
 
-func (b *backend) pathConfigWrite(
-	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *backend) pathConfigWrite(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	organization := data.Get("organization").(string)
 	baseURL := data.Get("base_url").(string)
 	if len(baseURL) != 0 {
@@ -87,15 +87,15 @@ func (b *backend) pathConfigWrite(
 		return nil, err
 	}
 
-	if err := req.Storage.Put(entry); err != nil {
+	if err := req.Storage.Put(ctx, entry); err != nil {
 		return nil, err
 	}
 
 	return nil, nil
 }
 
-func (b *backend) pathConfigRead(req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	config, err := b.Config(req.Storage)
+func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	config, err := b.Config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -108,14 +108,19 @@ func (b *backend) pathConfigRead(req *logical.Request, data *framework.FieldData
 	config.MaxTTL /= time.Second
 
 	resp := &logical.Response{
-		Data: structs.New(config).Map(),
+		Data: map[string]interface{}{
+			"organization": config.Organization,
+			"base_url":     config.BaseURL,
+			"ttl":          config.TTL,
+			"max_ttl":      config.MaxTTL,
+		},
 	}
 	return resp, nil
 }
 
 // Config returns the configuration for this backend.
-func (b *backend) Config(s logical.Storage) (*config, error) {
-	entry, err := s.Get("config")
+func (b *backend) Config(ctx context.Context, s logical.Storage) (*config, error) {
+	entry, err := s.Get(ctx, "config")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +128,7 @@ func (b *backend) Config(s logical.Storage) (*config, error) {
 	var result config
 	if entry != nil {
 		if err := entry.DecodeJSON(&result); err != nil {
-			return nil, fmt.Errorf("error reading configuration: %s", err)
+			return nil, errwrap.Wrapf("error reading configuration: {{err}}", err)
 		}
 	}
 

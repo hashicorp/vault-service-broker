@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/seal - HTTP API"
-sidebar_current: "docs-http-system-seal/"
+sidebar_title: "<code>/sys/seal</code>"
+sidebar_current: "api-http-system-seal/"
 description: |-
   The `/sys/seal` endpoint seals the Vault.
 ---
@@ -26,5 +27,5 @@ Standby nodes should be restarted to get the same effect. Requires a token with
 $ curl \
     --header "X-Vault-Token: ..." \
     --request PUT \
-    https://vault.rocks/v1/sys/seal
+    http://127.0.0.1:8200/v1/sys/seal
 ```

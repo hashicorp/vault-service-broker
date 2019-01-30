@@ -59,13 +59,12 @@ type Broker struct {
 	planBullets      []string
 
 	// metadata about the broker
-	displayName          string
-	imageUrl             string
-	longDescription      string
-	providerDisplayName  string
-	documentationUrl     string
-	supportUrl           string
-
+	displayName         string
+	imageUrl            string
+	longDescription     string
+	providerDisplayName string
+	documentationUrl    string
+	supportUrl          string
 
 	// vaultAdvertiseAddr is the address where Vault should be advertised to
 	// clients.
@@ -297,13 +296,13 @@ func (b *Broker) Services(ctx context.Context) []brokerapi.Service {
 					Name:        b.planName,
 					Description: b.planDescription,
 					Free:        brokerapi.FreeValue(true),
-					Metadata:    &brokerapi.ServicePlanMetadata {
+					Metadata: &brokerapi.ServicePlanMetadata{
 						DisplayName: b.planMetadataName,
 						Bullets:     b.planBullets,
 					},
 				},
 			},
-			Metadata:  &brokerapi.ServiceMetadata{
+			Metadata: &brokerapi.ServiceMetadata{
 				DisplayName:         b.displayName,
 				ImageUrl:            b.imageUrl,
 				LongDescription:     b.longDescription,

@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/wrapping/unwrap - HTTP API"
-sidebar_current: "docs-http-system-wrapping-unwrap"
+sidebar_title: "<code>/sys/wrapping/unwrap</code>"
+sidebar_current: "api-http-system-wrapping-unwrap"
 description: |-
   The `/sys/wrapping/unwrap` endpoint unwraps a wrapped response.
 ---
@@ -50,7 +51,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request POST \
     --data @payload.json \
-    https://vault.rocks/v1/sys/wrapping/unwrap
+    http://127.0.0.1:8200/v1/sys/wrapping/unwrap
 ```
 
 ### Sample Response

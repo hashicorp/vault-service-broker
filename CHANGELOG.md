@@ -1,7 +1,8 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
-## v0.4.0 (Unreleased)
+## v0.4.0 (January 29, 2019)
 FEATURES:
+- [#33](https://github.com/hashicorp/vault-service-broker/pull/33) adds support for a broker-level namespace setting
 - [#39](https://github.com/hashicorp/vault-service-broker/pull/39) adds support for application-level secrets engines but also contains a **breaking change** in the format of the JSON returned by the `Bind` call so should be adopted with caution
 
 ## v0.3.0 (January 23, 2019)

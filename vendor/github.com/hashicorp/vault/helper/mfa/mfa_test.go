@@ -1,6 +1,7 @@
 package mfa
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hashicorp/vault/logical"
@@ -43,8 +44,7 @@ func testPathLogin() *framework.Path {
 	}
 }
 
-func testPathLoginHandler(
-	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+func testPathLoginHandler(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	username := d.Get("username").(string)
 
 	return &logical.Response{
@@ -57,7 +57,7 @@ func testPathLoginHandler(
 	}, nil
 }
 
-func testMFAHandler(req *logical.Request, d *framework.FieldData, resp *logical.Response) (
+func testMFAHandler(ctx context.Context, req *logical.Request, d *framework.FieldData, resp *logical.Response) (
 	*logical.Response, error) {
 	if d.Get("method").(string) != "accept" {
 		return logical.ErrorResponse("Deny access"), nil
@@ -71,7 +71,7 @@ func TestMFALogin(t *testing.T) {
 
 	logicaltest.Test(t, logicaltest.TestCase{
 		AcceptanceTest: true,
-		Backend:        b,
+		LogicalBackend: b,
 		Steps: []logicaltest.TestStep{
 			testAccStepEnableMFA(t),
 			testAccStepLogin(t, "user"),
@@ -84,7 +84,7 @@ func TestMFALoginDenied(t *testing.T) {
 
 	logicaltest.Test(t, logicaltest.TestCase{
 		AcceptanceTest: true,
-		Backend:        b,
+		LogicalBackend: b,
 		Steps: []logicaltest.TestStep{
 			testAccStepEnableMFA(t),
 			testAccStepLoginDenied(t, "user"),

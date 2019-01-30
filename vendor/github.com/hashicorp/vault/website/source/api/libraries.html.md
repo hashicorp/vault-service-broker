@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "HTTP API: Libraries"
-sidebar_current: "docs-http-libraries"
+sidebar_title: "Client Libraries"
+sidebar_current: "api-http-libraries"
 description: |-
   List of official and community contributed libraries for interacting with the Vault HTTP API.
 ---
@@ -37,6 +38,7 @@ These libraries are provided by the community.
 
 ### Ansible
 
+* [ansible-vault](https://github.com/jhaals/ansible-vault) lookup plugin without third-party dependencies.
 * [Ansible Modules Hashivault](https://pypi.python.org/pypi/ansible-modules-hashivault)
 
 ```shell
@@ -45,7 +47,7 @@ $ pip install ansible-modules-hashivault
 
 ### C&#35;
 
-* [VaultSharp](https://github.com/rajanadar/VaultSharp) (.NET Standard = 1.4 (.NET Core >= 1.0.0) and also .NET 4.5.x, .NET 4.6.x)
+* [VaultSharp](https://github.com/rajanadar/VaultSharp) (.NET Core >= 1.0.0, .NET 4.5, .NET 4.6, Mono, iOS, Android, Mac, UWP etc.)
 
 ```shell
 $ Install-Package VaultSharp
@@ -84,7 +86,6 @@ $ cabal install vault-tool
 ### Java
 
 * [Spring Vault](https://github.com/spring-projects/spring-vault)
-* [vault-java](https://github.com/jhaals/vault-java)
 * [vault-java-driver](https://github.com/BetterCloud/vault-java-driver)
 
 ### Kotlin
@@ -119,6 +120,12 @@ $ composer require jippi/vault-php-sdk
 $ composer require violuke/vault-php-sdk
 ```
 
+* [vault-php](https://github.com/CSharpRU/vault-php)
+
+```shell
+$ composer require csharpru/vault-php
+```
+
 ### PowerShell
 
 * [Zyborg.Vault](https://github.com/zyborg/Zyborg.Vault)
@@ -133,6 +140,12 @@ Install-Module Zyborg.Vault
 
 ```shell
 $ pip install hvac
+```
+
+* [Async-HVAC](https://github.com/Aloomaio/async-hvac)
+
+```shell
+$ pip install async-hvac
 ```
 
 ### Rust

@@ -1,20 +1,21 @@
 ---
 layout: "api"
-page_title: "Consul Secret Backend - HTTP API"
-sidebar_current: "docs-http-secret-consul"
+page_title: "Consul - Secrets Engines - HTTP API"
+sidebar_title: "Consul"
+sidebar_current: "api-http-secret-consul"
 description: |-
-  This is the API documentation for the Vault Consul secret backend.
+  This is the API documentation for the Vault Consul secrets engine.
 ---
 
-# Consul Secret Backend HTTP API
+# Consul Secrets Engine (API)
 
-This is the API documentation for the Vault Consul secret backend. For general
-information about the usage and operation of the Consul backend, please see the
-[Vault Consul backend documentation](/docs/secrets/consul/index.html).
+This is the API documentation for the Vault Consul secrets engine. For general
+information about the usage and operation of the Consul secrets engine, please
+see the [Vault Consul documentation](/docs/secrets/consul/index.html).
 
-This documentation assumes the Consul backend is mounted at the `/consul` path
-in Vault. Since it is possible to mount secret backends at any location, please
-update your API calls accordingly.
+This documentation assumes the Consul secrets engine is enabled at the `/consul`
+path in Vault. Since it is possible to enable secrets engines at any location,
+please update your API calls accordingly.
 
 ## Configure Access
 
@@ -53,7 +54,7 @@ $ curl \
     --request POST \
     --header "X-Vault-Token: ..." \
     --data @payload.json \
-    https://vault.rocks/v1/consul/config/access
+    http://127.0.0.1:8200/v1/consul/config/access
 ```
 
 ## Create/Update Role
@@ -66,22 +67,33 @@ updated attributes.
 | :------- | :--------------------------- | :--------------------- |
 | `POST`   | `/consul/roles/:name`        | `204 (empty body)`     |
 
-### Parameters
+### Parameters for Consul version below 1.4
 
 - `name` `(string: <required>)` – Specifies the name of an existing role against
   which to create this Consul credential. This is part of the request URL.
 
-- `lease` `(string: "")` – Specifies the lease for this role. This is provided
-  as a string duration with a time suffix like `"30s"` or `"1h"`. If not
-  provided, the default Vault lease is used.
+- `token_type` `(string: "client")` - Specifies the type of token to create when
+  using this role. Valid values are `"client"` or `"management"`.
 
-- `policy` `(string: <required>)` – Specifies the base64 encoded ACL policy. The
+- `policy` `(string: <policy or policies>)` – Specifies the base64 encoded ACL policy. The
   ACL format can be found in the [Consul ACL
   documentation](https://www.consul.io/docs/internals/acl.html). This is
   required unless the `token_type` is `management`.
 
-- `token_type` `(string: "client")` - Specifies the type of token to create when
-  using this role. Valid values are `"client"` or `"management"`.
+- `policies` `(list: <policy or policies>)` – The list of policies to assign to the generated
+  token.  This is only available in Consul 1.4 and greater.
+
+- `local` `(bool: false)` - Indicates that the token should not be replicated 
+  globally and instead be local to the current datacenter.  Only available in Consul
+  1.4 and greater.
+
+- `ttl` `(duration: "")` – Specifies the TTL for this role. This is provided
+  as a string duration with a time suffix like `"30s"` or `"1h"` or as seconds. If not
+  provided, the default Vault TTL is used.
+
+- `max_ttl` `(duration: "")` – Specifies the max TTL for this role. This is provided
+  as a string duration with a time suffix like `"30s"` or `"1h"` or as seconds. If not
+  provided, the default Vault Max TTL is used.
 
 ### Sample Payload
 
@@ -108,7 +120,33 @@ $ curl \
     --request POST \
     --header "X-Vault-Token: ..." \
     --data @payload.json \
-    https://vault.rocks/v1/consul/roles/example-role
+    http://127.0.0.1:8200/v1/consul/roles/example-role
+```
+
+### Parameters for Consul versions 1.4 and above
+
+- `lease` `(string: "")` – Specifies the lease for this role. This is provided
+  as a string duration with a time suffix like `"30s"` or `"1h"`. If not
+  provided, the default Vault lease is used.
+
+- `policies` `(string: <required>)` – Comma separated list of policies to be applied
+  to the tokens.
+
+### Sample payload
+```json
+{
+  "policies": "global-management"
+}
+```
+
+### Sample request
+
+```sh
+curl \
+→     --request POST \
+→     --header "X-Vault-Token: ..."\
+→     --data @payload.json \
+→     http://127.0.0.1:8200/v1/consul/roles/example-role
 ```
 
 ## Read Role
@@ -130,7 +168,7 @@ If no role exists with that name, a 404 is returned.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/consul/roles/example-role
+    http://127.0.0.1:8200/v1/consul/roles/example-role
 ```
 
 ### Sample Response
@@ -147,11 +185,11 @@ $ curl \
 
 ## List Roles
 
-This endpoint lists all existing roles in the backend.
+This endpoint lists all existing roles in the secrets engine.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
-| `LIST`    | `/consul/roles`             | `200 application/json` |
+| `LIST`   | `/consul/roles`              | `200 application/json` |
 
 ### Sample Request
 
@@ -159,7 +197,7 @@ This endpoint lists all existing roles in the backend.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request LIST \
-    https://vault.rocks/v1/consul/roles
+    http://127.0.0.1:8200/v1/consul/roles
 ```
 
 ### Sample Response
@@ -194,7 +232,7 @@ not exist, this endpoint will still return a successful response.
 $ curl \
     --request DELETE \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/consul/roles/example-role
+    http://127.0.0.1:8200/v1/consul/roles/example-role
 ```
 
 ## Generate Credential
@@ -216,7 +254,7 @@ definition.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/consul/creds/example-role
+    http://127.0.0.1:8200/v1/consul/creds/example-role
 ```
 
 ### Sample Response

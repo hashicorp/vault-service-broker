@@ -1,6 +1,7 @@
 ---
 layout: "docs"
 page_title: "Etcd - Storage Backends - Configuration"
+sidebar_title: "Etcd"
 sidebar_current: "docs-configuration-storage-etcd"
 description: |-
   The Etcd storage backend is used to persist Vault's data in Etcd. It supports
@@ -40,16 +41,20 @@ storage "etcd" {
   query for SRV records describing cluster endpoints. This can also be provided
   via the environment variable `ETCD_DISCOVERY_SRV`.
 
+- `discovery_srv_name` `(string: "vault")` - Specifies the service name to use
+  when querying for SRV records describing cluster endpoints. This can also be
+  provided via the environment variable `ETCD_DISCOVERY_SRV_NAME`.
+
 - `etcd_api` `(string: "<varies>")` – Specifies the version of the API to
   communicate with. By default, this is derived automatically. If the cluster
   version is 3.1+ and there has been no data written using the v2 API, the
   auto-detected default is v3.
 
-- `ha_enabled` `(bool: false)` – Specifies if high availability should be
+- `ha_enabled` `(string: "false")` – Specifies if high availability should be
   enabled. This can also be provided via the environment variable
   `ETCD_HA_ENABLED`.
 
-- `path` `(string: "vault/")` – Specifies the path in Etcd where Vault data will
+- `path` `(string: "/vault/")` – Specifies the path in Etcd where Vault data will
   be stored.
 
 - `sync` `(string: "true")` – Specifies whether to sync the list of available
@@ -73,23 +78,6 @@ storage "etcd" {
 
 - `tls_key_file` `(string: "")` – Specifies the path to the private key for Etcd
   communication.
-
-This backend also supports the following high availability parameters. These are
-discussed in more detail in the [HA concepts page](/docs/concepts/ha.html).
-
-- `cluster_addr` `(string: "")` – Specifies the address to advertise to other
-  Vault servers in the cluster for request forwarding. This can also be provided
-  via the environment variable `VAULT_CLUSTER_ADDR`. This is a full URL, like
-  `redirect_addr`, but Vault will ignore the scheme (all cluster members always
-  use TLS with a private key/certificate).
-
-- `disable_clustering` `(bool: false)` – Specifies whether clustering features
-  such as request forwarding are enabled. Setting this to true on one Vault node
-  will disable these features _only when that node is the active node_.
-
-- `redirect_addr` `(string: <required>)` – Specifies the address (full URL) to
-  advertise to other Vault servers in the cluster for client redirection. This
-  can also be provided via the environment variable `VAULT_REDIRECT_ADDR`.
 
 ## `etcd` Examples
 
@@ -131,9 +119,11 @@ storage "etcd" {
 This example show enabling high availability for the Etcd storage backend.
 
 ```hcl
+api_addr = "https://vault-leader.my-company.internal"
+
 storage "etcd" {
-  ha_enabled    = true
-  redirect_addr = "vault-leader.my-company.internal"
+  ha_enabled    = "true"
+  ...
 }
 ```
 

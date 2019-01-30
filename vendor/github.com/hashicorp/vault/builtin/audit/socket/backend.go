@@ -2,6 +2,7 @@ package socket
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 	"github.com/hashicorp/vault/logical"
 )
 
-func Factory(conf *audit.BackendConfig) (audit.Backend, error) {
+func Factory(ctx context.Context, conf *audit.BackendConfig) (audit.Backend, error) {
 	if conf.SaltConfig == nil {
 		return nil, fmt.Errorf("nil salt config")
 	}
@@ -49,7 +50,7 @@ func Factory(conf *audit.BackendConfig) (audit.Backend, error) {
 	switch format {
 	case "json", "jsonx":
 	default:
-		return nil, fmt.Errorf("unknown format type %s", format)
+		return nil, fmt.Errorf("unknown format type %q", format)
 	}
 
 	// Check if hashing of accessor is disabled
@@ -120,64 +121,65 @@ type Backend struct {
 	saltView   logical.Storage
 }
 
-func (b *Backend) GetHash(data string) (string, error) {
-	salt, err := b.Salt()
+var _ audit.Backend = (*Backend)(nil)
+
+func (b *Backend) GetHash(ctx context.Context, data string) (string, error) {
+	salt, err := b.Salt(ctx)
 	if err != nil {
 		return "", err
 	}
 	return audit.HashString(salt, data), nil
 }
 
-func (b *Backend) LogRequest(auth *logical.Auth, req *logical.Request, outerErr error) error {
+func (b *Backend) LogRequest(ctx context.Context, in *audit.LogInput) error {
 	var buf bytes.Buffer
-	if err := b.formatter.FormatRequest(&buf, b.formatConfig, auth, req, outerErr); err != nil {
+	if err := b.formatter.FormatRequest(ctx, &buf, b.formatConfig, in); err != nil {
 		return err
 	}
 
 	b.Lock()
 	defer b.Unlock()
 
-	err := b.write(buf.Bytes())
+	err := b.write(ctx, buf.Bytes())
 	if err != nil {
-		rErr := b.reconnect()
+		rErr := b.reconnect(ctx)
 		if rErr != nil {
 			err = multierror.Append(err, rErr)
 		} else {
 			// Try once more after reconnecting
-			err = b.write(buf.Bytes())
+			err = b.write(ctx, buf.Bytes())
 		}
 	}
 
 	return err
 }
 
-func (b *Backend) LogResponse(auth *logical.Auth, req *logical.Request,
-	resp *logical.Response, outerErr error) error {
+func (b *Backend) LogResponse(ctx context.Context, in *audit.LogInput) error {
 	var buf bytes.Buffer
-	if err := b.formatter.FormatResponse(&buf, b.formatConfig, auth, req, resp, outerErr); err != nil {
+	if err := b.formatter.FormatResponse(ctx, &buf, b.formatConfig, in); err != nil {
 		return err
 	}
 
 	b.Lock()
 	defer b.Unlock()
 
-	err := b.write(buf.Bytes())
+	err := b.write(ctx, buf.Bytes())
 	if err != nil {
-		rErr := b.reconnect()
+		rErr := b.reconnect(ctx)
 		if rErr != nil {
 			err = multierror.Append(err, rErr)
 		} else {
 			// Try once more after reconnecting
-			err = b.write(buf.Bytes())
+			err = b.write(ctx, buf.Bytes())
 		}
 	}
 
 	return err
 }
 
-func (b *Backend) write(buf []byte) error {
+func (b *Backend) write(ctx context.Context, buf []byte) error {
 	if b.connection == nil {
-		if err := b.reconnect(); err != nil {
+		if err := b.reconnect(ctx); err != nil {
 			return err
 		}
 	}
@@ -195,13 +197,14 @@ func (b *Backend) write(buf []byte) error {
 	return err
 }
 
-func (b *Backend) reconnect() error {
+func (b *Backend) reconnect(ctx context.Context) error {
 	if b.connection != nil {
 		b.connection.Close()
 		b.connection = nil
 	}
 
-	conn, err := net.Dial(b.socketType, b.address)
+	dialer := net.Dialer{}
+	conn, err := dialer.DialContext(ctx, b.socketType, b.address)
 	if err != nil {
 		return err
 	}
@@ -211,16 +214,16 @@ func (b *Backend) reconnect() error {
 	return nil
 }
 
-func (b *Backend) Reload() error {
+func (b *Backend) Reload(ctx context.Context) error {
 	b.Lock()
 	defer b.Unlock()
 
-	err := b.reconnect()
+	err := b.reconnect(ctx)
 
 	return err
 }
 
-func (b *Backend) Salt() (*salt.Salt, error) {
+func (b *Backend) Salt(ctx context.Context) (*salt.Salt, error) {
 	b.saltMutex.RLock()
 	if b.salt != nil {
 		defer b.saltMutex.RUnlock()
@@ -232,7 +235,7 @@ func (b *Backend) Salt() (*salt.Salt, error) {
 	if b.salt != nil {
 		return b.salt, nil
 	}
-	salt, err := salt.NewSalt(b.saltView, b.saltConfig)
+	salt, err := salt.NewSalt(ctx, b.saltView, b.saltConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +243,7 @@ func (b *Backend) Salt() (*salt.Salt, error) {
 	return salt, nil
 }
 
-func (b *Backend) Invalidate() {
+func (b *Backend) Invalidate(_ context.Context) {
 	b.saltMutex.Lock()
 	defer b.saltMutex.Unlock()
 	b.salt = nil

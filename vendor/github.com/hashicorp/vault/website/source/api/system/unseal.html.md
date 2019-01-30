@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/unseal - HTTP API"
-sidebar_current: "docs-http-system-unseal"
+sidebar_title: "<code>/sys/unseal</code>"
+sidebar_current: "api-http-system-unseal"
 description: |-
   The `/sys/unseal` endpoint is used to unseal the Vault.
 ---
@@ -32,6 +33,10 @@ Either the `key` or `reset` parameter must be provided; if both are provided,
 - `reset` `(bool: false)` – Specifies if previously-provided unseal keys are
   discarded and the unseal process is reset.
 
+- `migrate` `(bool: false)` - Available in 1.0 Beta - Used to migrate the seal
+  from shamir to autoseal or autoseal to shamir.  Must be provided on all unseal
+  key calls.
+
 ### Sample Payload
 
 ```json
@@ -46,7 +51,7 @@ Either the `key` or `reset` parameter must be provided; if both are provided,
 $ curl \
     --request PUT \
     --data @payload.json \
-    https://vault.rocks/v1/sys/unseal
+    http://127.0.0.1:8200/v1/sys/unseal
 ```
 
 ### Sample Response

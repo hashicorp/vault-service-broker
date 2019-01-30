@@ -1,13 +1,14 @@
 package plugin
 
 import (
+	"context"
 	"net/rpc"
 	"time"
 
 	"fmt"
 
-	plugin "github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/vault/helper/consts"
+	"github.com/hashicorp/vault/helper/license"
 	"github.com/hashicorp/vault/helper/pluginutil"
 	"github.com/hashicorp/vault/helper/wrapping"
 	"github.com/hashicorp/vault/logical"
@@ -37,7 +38,7 @@ func (s *SystemViewClient) MaxLeaseTTL() time.Duration {
 	return reply.MaxLeaseTTL
 }
 
-func (s *SystemViewClient) SudoPrivilege(path string, token string) bool {
+func (s *SystemViewClient) SudoPrivilege(ctx context.Context, path string, token string) bool {
 	var reply SudoPrivilegeReply
 	args := &SudoPrivilegeArgs{
 		Path:  path,
@@ -79,13 +80,13 @@ func (s *SystemViewClient) ReplicationState() consts.ReplicationState {
 
 	err := s.client.Call("Plugin.ReplicationState", new(interface{}), &reply)
 	if err != nil {
-		return consts.ReplicationDisabled
+		return consts.ReplicationUnknown
 	}
 
 	return reply.ReplicationState
 }
 
-func (s *SystemViewClient) ResponseWrapData(data map[string]interface{}, ttl time.Duration, jwt bool) (*wrapping.ResponseWrapInfo, error) {
+func (s *SystemViewClient) ResponseWrapData(ctx context.Context, data map[string]interface{}, ttl time.Duration, jwt bool) (*wrapping.ResponseWrapInfo, error) {
 	var reply ResponseWrapDataReply
 	// Do not allow JWTs to be returned
 	args := &ResponseWrapDataArgs{
@@ -105,8 +106,13 @@ func (s *SystemViewClient) ResponseWrapData(data map[string]interface{}, ttl tim
 	return reply.ResponseWrapInfo, nil
 }
 
-func (s *SystemViewClient) LookupPlugin(name string) (*pluginutil.PluginRunner, error) {
+func (s *SystemViewClient) LookupPlugin(_ context.Context, _ string, _ consts.PluginType) (*pluginutil.PluginRunner, error) {
 	return nil, fmt.Errorf("cannot call LookupPlugin from a plugin backend")
+}
+
+func (s *SystemViewClient) HasFeature(feature license.Features) bool {
+	// Not implemented
+	return false
 }
 
 func (s *SystemViewClient) MlockEnabled() bool {
@@ -117,6 +123,47 @@ func (s *SystemViewClient) MlockEnabled() bool {
 	}
 
 	return reply.MlockEnabled
+}
+
+func (s *SystemViewClient) LocalMount() bool {
+	var reply LocalMountReply
+	err := s.client.Call("Plugin.LocalMount", new(interface{}), &reply)
+	if err != nil {
+		return false
+	}
+
+	return reply.Local
+}
+
+func (s *SystemViewClient) EntityInfo(entityID string) (*logical.Entity, error) {
+	var reply EntityInfoReply
+	args := &EntityInfoArgs{
+		EntityID: entityID,
+	}
+
+	err := s.client.Call("Plugin.EntityInfo", args, &reply)
+	if err != nil {
+		return nil, err
+	}
+	if reply.Error != nil {
+		return nil, reply.Error
+	}
+
+	return reply.Entity, nil
+}
+
+func (s *SystemViewClient) PluginEnv(_ context.Context) (*logical.PluginEnvironment, error) {
+	var reply PluginEnvReply
+
+	err := s.client.Call("Plugin.PluginEnv", new(interface{}), &reply)
+	if err != nil {
+		return nil, err
+	}
+	if reply.Error != nil {
+		return nil, reply.Error
+	}
+
+	return reply.PluginEnvironment, nil
 }
 
 type SystemViewServer struct {
@@ -142,7 +189,7 @@ func (s *SystemViewServer) MaxLeaseTTL(_ interface{}, reply *MaxLeaseTTLReply) e
 }
 
 func (s *SystemViewServer) SudoPrivilege(args *SudoPrivilegeArgs, reply *SudoPrivilegeReply) error {
-	sudo := s.impl.SudoPrivilege(args.Path, args.Token)
+	sudo := s.impl.SudoPrivilege(context.Background(), args.Path, args.Token)
 	*reply = SudoPrivilegeReply{
 		Sudo: sudo,
 	}
@@ -179,10 +226,10 @@ func (s *SystemViewServer) ReplicationState(_ interface{}, reply *ReplicationSta
 
 func (s *SystemViewServer) ResponseWrapData(args *ResponseWrapDataArgs, reply *ResponseWrapDataReply) error {
 	// Do not allow JWTs to be returned
-	info, err := s.impl.ResponseWrapData(args.Data, args.TTL, false)
+	info, err := s.impl.ResponseWrapData(context.Background(), args.Data, args.TTL, false)
 	if err != nil {
 		*reply = ResponseWrapDataReply{
-			Error: plugin.NewBasicError(err),
+			Error: wrapError(err),
 		}
 		return nil
 	}
@@ -197,6 +244,45 @@ func (s *SystemViewServer) MlockEnabled(_ interface{}, reply *MlockEnabledReply)
 	enabled := s.impl.MlockEnabled()
 	*reply = MlockEnabledReply{
 		MlockEnabled: enabled,
+	}
+
+	return nil
+}
+
+func (s *SystemViewServer) LocalMount(_ interface{}, reply *LocalMountReply) error {
+	local := s.impl.LocalMount()
+	*reply = LocalMountReply{
+		Local: local,
+	}
+
+	return nil
+}
+
+func (s *SystemViewServer) EntityInfo(args *EntityInfoArgs, reply *EntityInfoReply) error {
+	entity, err := s.impl.EntityInfo(args.EntityID)
+	if err != nil {
+		*reply = EntityInfoReply{
+			Error: wrapError(err),
+		}
+		return nil
+	}
+	*reply = EntityInfoReply{
+		Entity: entity,
+	}
+
+	return nil
+}
+
+func (s *SystemViewServer) PluginEnv(_ interface{}, reply *PluginEnvReply) error {
+	pluginEnv, err := s.impl.PluginEnv(context.Background())
+	if err != nil {
+		*reply = PluginEnvReply{
+			Error: wrapError(err),
+		}
+		return nil
+	}
+	*reply = PluginEnvReply{
+		PluginEnvironment: pluginEnv,
 	}
 
 	return nil
@@ -239,9 +325,27 @@ type ResponseWrapDataArgs struct {
 
 type ResponseWrapDataReply struct {
 	ResponseWrapInfo *wrapping.ResponseWrapInfo
-	Error            *plugin.BasicError
+	Error            error
 }
 
 type MlockEnabledReply struct {
 	MlockEnabled bool
+}
+
+type LocalMountReply struct {
+	Local bool
+}
+
+type EntityInfoArgs struct {
+	EntityID string
+}
+
+type EntityInfoReply struct {
+	Entity *logical.Entity
+	Error  error
+}
+
+type PluginEnvReply struct {
+	PluginEnvironment *logical.PluginEnvironment
+	Error             error
 }

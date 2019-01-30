@@ -1,14 +1,15 @@
 package plugin
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	log "github.com/hashicorp/go-hclog"
 	gplugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/vault/helper/logformat"
+	"github.com/hashicorp/vault/helper/logging"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/plugin/mock"
-	log "github.com/mgutz/logxi/v1"
 )
 
 func TestBackendPlugin_impl(t *testing.T) {
@@ -20,15 +21,17 @@ func TestBackendPlugin_HandleRequest(t *testing.T) {
 	b, cleanup := testBackend(t)
 	defer cleanup()
 
-	resp, err := b.HandleRequest(&logical.Request{
-		Operation: logical.ReadOperation,
-		Path:      "test/ing",
-		Data:      map[string]interface{}{"value": "foo"},
+	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "kv/foo",
+		Data: map[string]interface{}{
+			"value": "bar",
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Data["value"] != "foo" {
+	if resp.Data["value"] != "bar" {
 		t.Fatalf("bad: %#v", resp)
 	}
 }
@@ -74,19 +77,19 @@ func TestBackendPlugin_HandleExistenceCheck(t *testing.T) {
 	b, cleanup := testBackend(t)
 	defer cleanup()
 
-	checkFound, exists, err := b.HandleExistenceCheck(&logical.Request{
+	checkFound, exists, err := b.HandleExistenceCheck(context.Background(), &logical.Request{
 		Operation: logical.CreateOperation,
-		Path:      "test/ing",
-		Data:      map[string]interface{}{"value": "foo"},
+		Path:      "kv/foo",
+		Data:      map[string]interface{}{"value": "bar"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !checkFound {
-		t.Fatal("existence check not found for path 'test/ing'")
+		t.Fatal("existence check not found for path 'kv/foo")
 	}
 	if exists {
-		t.Fatal("existence check should have returned 'false' for 'testing/read'")
+		t.Fatal("existence check should have returned 'false' for 'kv/foo'")
 	}
 }
 
@@ -94,24 +97,16 @@ func TestBackendPlugin_Cleanup(t *testing.T) {
 	b, cleanup := testBackend(t)
 	defer cleanup()
 
-	b.Cleanup()
-}
-
-func TestBackendPlugin_Initialize(t *testing.T) {
-	b, cleanup := testBackend(t)
-	defer cleanup()
-
-	err := b.Initialize()
-	if err != nil {
-		t.Fatal(err)
-	}
+	b.Cleanup(context.Background())
 }
 
 func TestBackendPlugin_InvalidateKey(t *testing.T) {
 	b, cleanup := testBackend(t)
 	defer cleanup()
 
-	resp, err := b.HandleRequest(&logical.Request{
+	ctx := context.Background()
+
+	resp, err := b.HandleRequest(ctx, &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      "internal",
 	})
@@ -122,9 +117,9 @@ func TestBackendPlugin_InvalidateKey(t *testing.T) {
 		t.Fatalf("bad: %#v, expected non-empty value", resp)
 	}
 
-	b.InvalidateKey("internal")
+	b.InvalidateKey(ctx, "internal")
 
-	resp, err = b.HandleRequest(&logical.Request{
+	resp, err = b.HandleRequest(ctx, &logical.Request{
 		Operation: logical.ReadOperation,
 		Path:      "internal",
 	})
@@ -145,10 +140,12 @@ func testBackend(t *testing.T) (logical.Backend, func()) {
 	// Create a mock provider
 	pluginMap := map[string]gplugin.Plugin{
 		"backend": &BackendPlugin{
-			Factory: mock.Factory,
+			GRPCBackendPlugin: &GRPCBackendPlugin{
+				Factory: mock.Factory,
+			},
 		},
 	}
-	client, _ := gplugin.TestPluginRPCConn(t, pluginMap)
+	client, _ := gplugin.TestPluginRPCConn(t, pluginMap, nil)
 	cleanup := func() {
 		client.Close()
 	}
@@ -160,8 +157,8 @@ func testBackend(t *testing.T) (logical.Backend, func()) {
 	}
 	b := raw.(logical.Backend)
 
-	err = b.Setup(&logical.BackendConfig{
-		Logger: logformat.NewVaultLogger(log.LevelTrace),
+	err = b.Setup(context.Background(), &logical.BackendConfig{
+		Logger: logging.NewVaultLogger(log.Debug),
 		System: &logical.StaticSystemView{
 			DefaultLeaseTTLVal: 300 * time.Second,
 			MaxLeaseTTLVal:     1800 * time.Second,

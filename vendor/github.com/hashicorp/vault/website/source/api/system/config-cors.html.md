@@ -1,7 +1,8 @@
 ---
 layout: "api"
 page_title: "/sys/config/cors - HTTP API"
-sidebar_current: "docs-http-system-config-cors"
+sidebar_title: "<code>/sys/config/cors</code>"
+sidebar_current: "api-http-system-config-cors"
 description: |-
   The '/sys/config/cors' endpoint configures how the Vault server responds to cross-origin requests.
 ---
@@ -26,7 +27,7 @@ This endpoint returns the current CORS configuration.
 ```
 $ curl \
     --header "X-Vault-Token: ..." \
-    https://vault.rocks/v1/sys/config/cors
+    http://127.0.0.1:8200/v1/sys/config/cors
 ```
 
 ### Sample Response
@@ -34,14 +35,24 @@ $ curl \
 ```json
 {
   "enabled": true,
-  "allowed_origins": "http://www.example.com"
+  "allowed_origins": ["http://www.example.com"],
+  "allowed_headers": [
+    "Content-Type",
+    "X-Requested-With",
+    "X-Vault-AWS-IAM-Server-ID",
+    "X-Vault-No-Request-Forwarding",
+    "X-Vault-Token",
+    "Authorization",
+    "X-Vault-Wrap-Format",
+    "X-Vault-Wrap-TTL",
+  ]
 }
 ```
 
 ## Configure CORS Settings
 
 This endpoint allows configuring the origins that are permitted to make
-cross-origin requests.
+cross-origin requests, as well as headers that are allowed on cross-origin requests.
 
 | Method   | Path                         | Produces               |
 | :------- | :--------------------------- | :--------------------- |
@@ -49,13 +60,16 @@ cross-origin requests.
 
 ### Parameters
 
-- `allowed_origins` `(string or string array: "" or [])` – A wildcard (`*`), comma-delimited string, or array of strings specifying the origins that are permitted to make cross-origin requests.
+- `allowed_origins` `(string or string array: <required>)` – A wildcard (`*`), comma-delimited string, or array of strings specifying the origins that are permitted to make cross-origin requests.
+
+- `allowed_headers` `(string or string array: "" or [])` – A comma-delimited string or array of strings specifying headers that are permitted to be on cross-origin requests. Headers set via this parameter will be appended to the list of headers that Vault allows by default.
 
 ### Sample Payload
 
 ```json
 {
-  "allowed_origins": "*"
+  "allowed_origins": "*",
+  "allowed_headers": "X-Custom-Header"
 }
 ```
 
@@ -66,7 +80,7 @@ $ curl \
     --header "X-Vault-Token: ..." \
     --request PUT \
     --data @payload.json \
-    https://vault.rocks/v1/sys/config/cors
+    http://127.0.0.1:8200/v1/sys/config/cors
 ```
 
 ## Delete CORS Settings
@@ -83,5 +97,5 @@ This endpoint removes any CORS configuration.
 $ curl \
     --header "X-Vault-Token: ..." \
     --request DELETE \
-    https://vault.rocks/v1/sys/config/cors
+    http://127.0.0.1:8200/v1/sys/config/cors
 ```

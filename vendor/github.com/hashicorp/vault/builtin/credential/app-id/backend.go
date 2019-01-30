@@ -1,6 +1,7 @@
 package appId
 
 import (
+	"context"
 	"sync"
 
 	"github.com/hashicorp/vault/helper/salt"
@@ -8,12 +9,12 @@ import (
 	"github.com/hashicorp/vault/logical/framework"
 )
 
-func Factory(conf *logical.BackendConfig) (logical.Backend, error) {
+func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
 	b, err := Backend(conf)
 	if err != nil {
 		return nil, err
 	}
-	if err := b.Setup(conf); err != nil {
+	if err := b.Setup(ctx, conf); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -63,7 +64,6 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 				"login/*",
 			},
 		},
-
 		Paths: framework.PathAppend([]*framework.Path{
 			pathLogin(&b),
 			pathLoginWithAppIDPath(&b),
@@ -71,10 +71,9 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 			b.MapAppId.Paths(),
 			b.MapUserId.Paths(),
 		),
-
-		AuthRenew: b.pathLoginRenew,
-
-		Invalidate: b.invalidate,
+		AuthRenew:   b.pathLoginRenew,
+		Invalidate:  b.invalidate,
+		BackendType: logical.TypeCredential,
 	}
 
 	b.view = conf.StorageView
@@ -94,7 +93,7 @@ type backend struct {
 	MapUserId *framework.PathMap
 }
 
-func (b *backend) Salt() (*salt.Salt, error) {
+func (b *backend) Salt(ctx context.Context) (*salt.Salt, error) {
 	b.SaltMutex.RLock()
 	if b.salt != nil {
 		defer b.SaltMutex.RUnlock()
@@ -106,7 +105,7 @@ func (b *backend) Salt() (*salt.Salt, error) {
 	if b.salt != nil {
 		return b.salt, nil
 	}
-	salt, err := salt.NewSalt(b.view, &salt.Config{
+	salt, err := salt.NewSalt(ctx, b.view, &salt.Config{
 		HashFunc: salt.SHA1Hash,
 		Location: salt.DefaultLocation,
 	})
@@ -117,7 +116,7 @@ func (b *backend) Salt() (*salt.Salt, error) {
 	return salt, nil
 }
 
-func (b *backend) invalidate(key string) {
+func (b *backend) invalidate(_ context.Context, key string) {
 	switch key {
 	case salt.DefaultLocation:
 		b.SaltMutex.Lock()

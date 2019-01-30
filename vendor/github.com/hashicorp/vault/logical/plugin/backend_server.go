@@ -1,10 +1,18 @@
 package plugin
 
 import (
+	"context"
+	"errors"
 	"net/rpc"
 
-	"github.com/hashicorp/go-plugin"
+	hclog "github.com/hashicorp/go-hclog"
+	plugin "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/vault/helper/pluginutil"
 	"github.com/hashicorp/vault/logical"
+)
+
+var (
+	ErrServerInMetadataMode = errors.New("plugin server can not perform action while in metadata mode")
 )
 
 // backendPluginServer is the RPC server that backendPluginClient talks to,
@@ -12,21 +20,25 @@ import (
 type backendPluginServer struct {
 	broker  *plugin.MuxBroker
 	backend logical.Backend
-	factory func(*logical.BackendConfig) (logical.Backend, error)
+	factory logical.Factory
 
-	loggerClient  *rpc.Client
+	logger        hclog.Logger
 	sysViewClient *rpc.Client
 	storageClient *rpc.Client
 }
 
 func (b *backendPluginServer) HandleRequest(args *HandleRequestArgs, reply *HandleRequestReply) error {
+	if pluginutil.InMetadataMode() {
+		return ErrServerInMetadataMode
+	}
+
 	storage := &StorageClient{client: b.storageClient}
 	args.Request.Storage = storage
 
-	resp, err := b.backend.HandleRequest(args.Request)
+	resp, err := b.backend.HandleRequest(context.Background(), args.Request)
 	*reply = HandleRequestReply{
 		Response: resp,
-		Error:    plugin.NewBasicError(err),
+		Error:    wrapError(err),
 	}
 
 	return nil
@@ -40,36 +52,38 @@ func (b *backendPluginServer) SpecialPaths(_ interface{}, reply *SpecialPathsRep
 }
 
 func (b *backendPluginServer) HandleExistenceCheck(args *HandleExistenceCheckArgs, reply *HandleExistenceCheckReply) error {
+	if pluginutil.InMetadataMode() {
+		return ErrServerInMetadataMode
+	}
+
 	storage := &StorageClient{client: b.storageClient}
 	args.Request.Storage = storage
 
-	checkFound, exists, err := b.backend.HandleExistenceCheck(args.Request)
+	checkFound, exists, err := b.backend.HandleExistenceCheck(context.TODO(), args.Request)
 	*reply = HandleExistenceCheckReply{
 		CheckFound: checkFound,
 		Exists:     exists,
-		Error:      plugin.NewBasicError(err),
+		Error:      wrapError(err),
 	}
 
 	return nil
 }
 
 func (b *backendPluginServer) Cleanup(_ interface{}, _ *struct{}) error {
-	b.backend.Cleanup()
+	b.backend.Cleanup(context.Background())
 
 	// Close rpc clients
-	b.loggerClient.Close()
 	b.sysViewClient.Close()
 	b.storageClient.Close()
 	return nil
 }
 
-func (b *backendPluginServer) Initialize(_ interface{}, _ *struct{}) error {
-	err := b.backend.Initialize()
-	return err
-}
-
 func (b *backendPluginServer) InvalidateKey(args string, _ *struct{}) error {
-	b.backend.InvalidateKey(args)
+	if pluginutil.InMetadataMode() {
+		return ErrServerInMetadataMode
+	}
+
+	b.backend.InvalidateKey(context.Background(), args)
 	return nil
 }
 
@@ -81,7 +95,7 @@ func (b *backendPluginServer) Setup(args *SetupArgs, reply *SetupReply) error {
 	storageConn, err := b.broker.Dial(args.StorageID)
 	if err != nil {
 		*reply = SetupReply{
-			Error: plugin.NewBasicError(err),
+			Error: wrapError(err),
 		}
 		return nil
 	}
@@ -90,24 +104,11 @@ func (b *backendPluginServer) Setup(args *SetupArgs, reply *SetupReply) error {
 
 	storage := &StorageClient{client: rawStorageClient}
 
-	// Dial for logger
-	loggerConn, err := b.broker.Dial(args.LoggerID)
-	if err != nil {
-		*reply = SetupReply{
-			Error: plugin.NewBasicError(err),
-		}
-		return nil
-	}
-	rawLoggerClient := rpc.NewClient(loggerConn)
-	b.loggerClient = rawLoggerClient
-
-	logger := &LoggerClient{client: rawLoggerClient}
-
 	// Dial for sys view
 	sysViewConn, err := b.broker.Dial(args.SysViewID)
 	if err != nil {
 		*reply = SetupReply{
-			Error: plugin.NewBasicError(err),
+			Error: wrapError(err),
 		}
 		return nil
 	}
@@ -118,17 +119,18 @@ func (b *backendPluginServer) Setup(args *SetupArgs, reply *SetupReply) error {
 
 	config := &logical.BackendConfig{
 		StorageView: storage,
-		Logger:      logger,
+		Logger:      b.logger,
 		System:      sysView,
 		Config:      args.Config,
+		BackendUUID: args.BackendUUID,
 	}
 
 	// Call the underlying backend factory after shims have been created
 	// to set b.backend
-	backend, err := b.factory(config)
+	backend, err := b.factory(context.Background(), config)
 	if err != nil {
 		*reply = SetupReply{
-			Error: plugin.NewBasicError(err),
+			Error: wrapError(err),
 		}
 	}
 	b.backend = backend
@@ -139,17 +141,6 @@ func (b *backendPluginServer) Setup(args *SetupArgs, reply *SetupReply) error {
 func (b *backendPluginServer) Type(_ interface{}, reply *TypeReply) error {
 	*reply = TypeReply{
 		Type: b.backend.Type(),
-	}
-
-	return nil
-}
-
-func (b *backendPluginServer) RegisterLicense(args *RegisterLicenseArgs, reply *RegisterLicenseReply) error {
-	err := b.backend.RegisterLicense(args.License)
-	if err != nil {
-		*reply = RegisterLicenseReply{
-			Error: plugin.NewBasicError(err),
-		}
 	}
 
 	return nil
