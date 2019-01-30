@@ -236,28 +236,36 @@ the following:
 
 ```json
 {
-  "hashicorp-vault": [
-    {
-      "name": "my-vault",
-      "plan": "shared",
-      "label": "hashicorp-vault",
-      "credentials": {
-        "address": "https://vault.company.internal:8200/",
-        "auth": {
-          "accessor": "171a13e0-cd51-b4ae-4b29-81321600ceb2",
-          "token": "5142df0f-cc39-a899-5e74-dd357c5e1152"
-        },
-        "backends": {
-          "generic": "cf/8bcae1a7-e1b8-4c9a-a0f4-ee1e538ebfbe/secret",
-          "transit": "cf/8bcae1a7-e1b8-4c9a-a0f4-ee1e538ebfbe/transit"
-        },
-        "backends_shared": {
-          "organization": "cf/bc58452e-b7d1-46fe-bf74-5335e70708ad/secret",
-          "space": "cf/072bfc67-1beb-4dd1-beb7-f7b05f00fc1a/secret"
-        }
-      }
-    }
-  ]
+	"hashicorp-vault": [{
+		"credentials": {
+			"address": "http://ae585ec6.ngrok.io/",
+			"auth": {
+				"accessor": "kMr3iCSlekSN2d1vpPjbjzUk",
+				"token": "s.qgVrPa3eKawwDDkeOSXUaWZq"
+			},
+			"backends": {
+				"generic": [
+					"cf/7f1a12a9-4a52-4151-bc96-874380d30182/secret",
+					"cf/c4073566-baee-48ae-88e9-7c7c7e0118eb/secret"
+				],
+				"transit": [
+					"cf/7f1a12a9-4a52-4151-bc96-874380d30182/transit",
+					"cf/c4073566-baee-48ae-88e9-7c7c7e0118eb/transit"
+				]
+			},
+			"backends_shared": {
+				"organization": "cf/8d4b992f-cca3-4876-94e0-e49170eafb67/secret",
+				"space": "cf/bdace353-e813-4efb-8122-58b9bd98e3ab/secret"
+			}
+		},
+		"label": "hashicorp-vault",
+		"name": "my-vault",
+		"plan": "shared",
+		"provider": null,
+		"syslog_drain_url": null,
+		"tags": [],
+		"volume_mounts": []
+	}]
 }
 ```
 
@@ -269,11 +277,13 @@ The keys of the `credentials` section are as follows:
 
 - `auth.token` - token to supply with requests to Vault
 
-- `backends.generic` - namespace in Vault where this token has full CRUD access
-  to the static secret storage ("generic") backend
+- `backends.generic` - namespaces in Vault where this token has full CRUD access
+  to the static secret storage ("generic") backend, one at the application level
+  and the other at the service instance level
 
-- `backends.transit` - namespace in Vault where this token has full access to
-  the transit ("encryption as a service") backend
+- `backends.transit` - namespaces in Vault where this token has full access to
+  the transit ("encryption as a service") backend, one at the application level
+  and the other at the service instance level
 
 - `backends_shared.organization` - namespace in Vault where this token has
   read-only access to organization-wide data; all instances have read-only
@@ -308,6 +318,8 @@ following paths:
 
 1. Mount the `generic` backend at `/cf/<organization_id>/secret/`
 1. Mount the `generic` backend at `/cf/<space_id>/secret/`
+1. Mount the `generic` backend at `/cf/<app_id>/secret/`
+1. Mount the `transit` backend at `/cf/<app_id>/transit/`
 1. Mount the `generic` backend at `/cf/<instance_id>/secret/`
 1. Mount the `transit` backend at `/cf/<instance_id>/transit/`
 
@@ -470,6 +482,8 @@ currently recognizes the following.
   and delete paths, and create tokens with role permissions. Please see the
   [Vault Token Permissions](#vault-token-permissions) section for more
   information on the requirements for this token.
+  
+- `VAULT_NAMESPACE` - (default: none) - namespace to use for all calls within Vault
 
 - `SECURITY_USER_NAME` - (default: none) - username for basic auth
 
