@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -60,8 +61,17 @@ func main() {
 		serviceDescription: config.ServiceDescription,
 		serviceTags:        config.ServiceTags,
 
-		planName:        config.PlanName,
-		planDescription: config.PlanDescription,
+		planName:         config.PlanName,
+		planDescription:  config.PlanDescription,
+		planMetadataName: config.PlanMetadataName,
+		planBullets:      config.PlanBullets,
+
+		displayName:         config.DisplayName,
+		imageUrl:            config.ImageUrl.String(),
+		longDescription:     config.LongDescription,
+		providerDisplayName: config.ProviderDisplayName,
+		documentationUrl:    config.DocumentationUrl,
+		supportUrl:          config.SupportUrl,
 
 		vaultAdvertiseAddr: config.VaultAdvertiseAddr,
 		vaultRenewToken:    config.VaultRenew,
@@ -180,17 +190,27 @@ type Configuration struct {
 	UAAInsecureAllowAnySigningMethod bool   `envconfig:"uaa_insecure_allow_any_signing_method"`
 
 	// Also optional
-	Port               string   `envconfig:"port" default:":8000"`
-	ServiceID          string   `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
-	VaultAddr          string   `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
-	VaultAdvertiseAddr string   `envconfig:"vault_advertise_addr"`
-	VaultNamespace     string   `envconfig:"vault_namespace"`
-	ServiceName        string   `envconfig:"service_name" default:"hashicorp-vault"`
-	ServiceDescription string   `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
-	PlanName           string   `envconfig:"plan_name" default:"shared"`
-	PlanDescription    string   `envconfig:"plan_description" default:"Secure access to Vault's storage and transit backends"`
-	ServiceTags        []string `envconfig:"service_tags"`
-	VaultRenew         bool     `envconfig:"vault_renew" default:"true"`
+	Port               string `envconfig:"port" default:":8000"`
+	ServiceID          string `envconfig:"service_id" default:"0654695e-0760-a1d4-1cad-5dd87b75ed99"`
+	VaultAddr          string `envconfig:"vault_addr" default:"https://127.0.0.1:8200"`
+	VaultAdvertiseAddr string `envconfig:"vault_advertise_addr"`
+	VaultNamespace     string `envconfig:"vault_namespace"`
+	ServiceName        string `envconfig:"service_name" default:"hashicorp-vault"`
+	ServiceDescription string `envconfig:"service_description" default:"HashiCorp Vault Service Broker"`
+	PlanName           string `envconfig:"plan_name" default:"shared"`
+	PlanDescription    string `envconfig:"plan_description" default:"Secure access to Vault's storage and transit backends"`
+
+	PlanMetadataName    string          `envconfig:"plan_metadata_name" default:"Architecture and Assumptions"`
+	PlanBullets         []string        `envconfig:"plan_bullets" default:"The Vault server is already running and is accessible by the broker.,The Vault server may be used by other applications (it is not exclusively tied to Cloud Foundry).,All instances of an application will share a token. This goes against the recommended Vault usage. This is a limitation of the Cloud Foundry service broker model.,Any Vault operations performed outside of Cloud Foundry will require users to rebind their instances."`
+	DisplayName         string          `envconfig:"display_name" default:"Vault for PCF"`
+	ImageUrl            *ImageDefaulter `envconfig:"image_url" default:"unset"`
+	LongDescription     string          `envconfig:"long_description" default:"The official HashiCorp Vault broker integration to the Open Service Broker API. This service broker provides support for secure secret storage and encryption-as-a-service to HashiCorp Vault."`
+	ProviderDisplayName string          `envconfig:"provider_display_name" default:"HashiCorp"`
+	DocumentationUrl    string          `envconfig:"documentation_url" default:"https://www.vaultproject.io/"`
+	SupportUrl          string          `envconfig:"support_url" default:"https://support.hashicorp.com/"`
+
+	ServiceTags []string `envconfig:"service_tags"`
+	VaultRenew  bool     `envconfig:"vault_renew" default:"true"`
 }
 
 func (c *Configuration) Validate() error {
@@ -279,4 +299,24 @@ func credhubProcess(cfLogger lager.Logger, prefix string, config *Configuration)
 		}
 	}
 	return nil
+}
+
+type ImageDefaulter struct {
+	Image string
+}
+
+func (d *ImageDefaulter) Decode(image string) error {
+	d.Image = image
+	if d.Image == "unset" {
+		def, err := ioutil.ReadFile("dflt_img_url.txt")
+		if err != nil {
+			return err
+		}
+		d.Image = fmt.Sprintf("%s", def)
+	}
+	return nil
+}
+
+func (d *ImageDefaulter) String() string {
+	return d.Image
 }
