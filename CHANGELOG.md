@@ -1,5 +1,12 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
+## v0.5.0 (January 30, 2019)
+FEATURES:
+- [#42](https://github.com/hashicorp/vault-service-broker/pull/42) adds support for a more polished-looking Marketplace UI
+
+BUG FIXES:
+- [#41](https://github.com/hashicorp/vault-service-broker/pull/41) solves multiple minor issues that caused black box testing to fail using `$ cf dev` locally - namely, it updates the go buildpack, the version of go used by cf for building, and deletes two unnecessary files that were symlinked outside the repo
+
 ## v0.4.0 (January 29, 2019)
 FEATURES:
 - [#33](https://github.com/hashicorp/vault-service-broker/pull/33) adds support for a broker-level namespace setting
