@@ -582,7 +582,8 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		return b.wErrorf(err, "failed to read binding info for %s", path)
 	}
 	if secret == nil || len(secret.Data) == 0 {
-		return b.errorf("missing bind info for unbind for %s", path)
+		// The secret was already deleted previously, nothing further to do.
+		return nil
 	}
 
 	// Decode the binding info
