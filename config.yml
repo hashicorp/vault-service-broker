@@ -1,0 +1,26 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - image: circleci/golang:1.12
+
+    working_directory: /go/src/github.com/hashicorp/vault-service-broker
+
+    steps:
+    - checkout
+
+    - run:
+        name: "Setup Environment"
+        command: echo 'export GO111MODULE=on' >> $BASH_ENV
+
+    - run:
+        name: "Run Tests"
+        command: go test -v
+
+    - run:
+        name: "Install Gox"
+        command: go get github.com/mitchellh/gox
+
+    - run:
+        name: "Run Build"
+        command: ./scripts/build.sh
