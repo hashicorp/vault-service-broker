@@ -35,7 +35,6 @@ path "cf/{{ .OrganizationGUID }}/*" {
 `
 
 	ApplicationPolicyTemplate = `
-
 path "cf/{{ .ApplicationGUID }}" {
   capabilities = ["list"]
 }
