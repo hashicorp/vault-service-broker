@@ -58,7 +58,7 @@ func TestNormalizeAddr(t *testing.T) {
 		t.Run(fmt.Sprintf("%d_%s", i, tc.name), func(t *testing.T) {
 			r := normalizeAddr(tc.i)
 			if r != tc.e {
-				t.Errorf("expectedWithAppID %q to be %q", r, tc.e)
+				t.Errorf("expected %q to be %q", r, tc.e)
 			}
 		})
 	}
@@ -76,46 +76,46 @@ func TestParseConfigDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if config.SecurityUserName != "fizz" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"fizz"`, config.SecurityUserName)
+		t.Fatalf("expected %s but received %s", `"fizz"`, config.SecurityUserName)
 	}
 	if config.SecurityUserPassword != "buzz" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"buzz"`, config.SecurityUserPassword)
+		t.Fatalf("expected %s but received %s", `"buzz"`, config.SecurityUserPassword)
 	}
 	if config.VaultToken != "bang" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"bang"`, config.VaultToken)
+		t.Fatalf("expected %s but received %s", `"bang"`, config.VaultToken)
 	}
 	if config.CredhubURL != "" {
-		t.Fatalf("expectedWithAppID %s but received %s", `""`, config.CredhubURL)
+		t.Fatalf("expected %s but received %s", `""`, config.CredhubURL)
 	}
 	if config.Port != ":8000" {
-		t.Fatalf("expectedWithAppID %s but received %s", `":8000"`, config.Port)
+		t.Fatalf("expected %s but received %s", `":8000"`, config.Port)
 	}
 	if config.ServiceID != "0654695e-0760-a1d4-1cad-5dd87b75ed99" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"0654695e-0760-a1d4-1cad-5dd87b75ed99"`, config.ServiceID)
+		t.Fatalf("expected %s but received %s", `"0654695e-0760-a1d4-1cad-5dd87b75ed99"`, config.ServiceID)
 	}
 	if config.VaultAddr != "https://127.0.0.1:8200/" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"https://127.0.0.1:8200/"`, config.VaultAddr)
+		t.Fatalf("expected %s but received %s", `"https://127.0.0.1:8200/"`, config.VaultAddr)
 	}
 	if config.VaultAdvertiseAddr != "https://127.0.0.1:8200/" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"https://127.0.0.1:8200/"`, config.VaultAdvertiseAddr)
+		t.Fatalf("expected %s but received %s", `"https://127.0.0.1:8200/"`, config.VaultAdvertiseAddr)
 	}
 	if config.ServiceName != "hashicorp-vault" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"hashicorp-vault"`, config.ServiceName)
+		t.Fatalf("expected %s but received %s", `"hashicorp-vault"`, config.ServiceName)
 	}
 	if config.ServiceDescription != "HashiCorp Vault Service Broker" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"HashiCorp Vault Service Broker"`, config.ServiceDescription)
+		t.Fatalf("expected %s but received %s", `"HashiCorp Vault Service Broker"`, config.ServiceDescription)
 	}
 	if config.PlanName != "shared" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"shared"`, config.PlanName)
+		t.Fatalf("expected %s but received %s", `"shared"`, config.PlanName)
 	}
 	if config.PlanDescription != "Secure access to Vault's storage and transit backends" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"Secure access to Vault's storage and transit backends"`, config.PlanDescription)
+		t.Fatalf("expected %s but received %s", `"Secure access to Vault's storage and transit backends"`, config.PlanDescription)
 	}
 	if len(config.ServiceTags) != 0 {
-		t.Fatalf("expectedWithAppID %d but received %d: %s", 0, len(config.ServiceTags), config.ServiceTags)
+		t.Fatalf("expected %d but received %d: %s", 0, len(config.ServiceTags), config.ServiceTags)
 	}
 	if config.VaultRenew != true {
-		t.Fatal("expectedWithAppID true but received false")
+		t.Fatal("expected true but received false")
 	}
 	if config.ImageUrl.String() != "data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEABAMAAACuXLVVAAAAJ1BMVEVHcEwVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUPAUIJAAAADHRSTlMAYOgXdQi7SS72ldNTKM7gAAAE00lEQVR42u3dvUscQRQA8JFzuSvlIJVpDBIhXGFlcZUYDFx3gmkskyIWV0iKpNjmqmvSpolsJwEPbEyjxTU5grD6/qgUfu3u7M7XvvcmgffKBZ0fem92dvbmPaUkJCQkJP7HSOovb7ON/67++psxEyC9qb8+2OAZfwZNALjiGH+YNQPyj/TjHwygGQD5PvX43QWYALBcox2/NwEzAG6mlON3RmADwC3ldNAHOwC+jwkT0AVAl4xDcAPAMc34h5krAH6SJaAjYLlPlYCOALg7QU/AOfgA8KeDPfAD5Ke4yZiCJwAA9d68A/4A+IQ3/lEWAoAzrPFXqr/ZEYB1b+4tIAwAv3ES8AKiApIRxAWsQ1zADOIChllcwOEAogK6C4gKKN6BYwCSOSABemEL5T5gAVaDFsop4AFgKyABc0yA/0L5MANUgO+9eWUAyIDlLkoChgO8Fso1d+D2AI+FcrIHFAA43W6fgK0ArgvlGVAB4Dr8DlyK41CAy3RgTkDjgt8B8GM/9A5ciMb9BweAdROrM7GOvzluA7AkY90SuBKGXHICmDex+tbxTT/uBjD8CV0S0PQHdAQ0f4iG1vHN87kroCkZO9YEtHyEnQF5/f+xYx3fksTOAAgD5LY1BTXgXMUF2KdxWoDDBjApYGMcF+D0ZEEIcHsJQQdwXE6SAVwX1FSAO20C7rIC9Am4+4sToE/AvcmSE3Be8+aAE3Bct2/CCLiqXbXxAfQJOAVOgD4B368auQD6Cvxh1coF2G16c8IFWGvauI0EeH5sjQMoPLZGART3rWIAesV9qwiA0qvjCIDKvhk/oPLmih3wBeICdiAy4KUABCAAAQhAAAIQgAA0wPva4AO4hgAEIAABCEAAAhCAAAQgAAEIQAACEIAA6PaIvtaGbNMJQAACEIAABCAAAfx7gOvIgKcTnpEAz99KjgMofCs5CuB2qqICSsdSIgDKx1L4AcsXKipg+VbFBVSPpXADtGMhzADtYLZezoMUcKmNr1cToATop4o/AydAPxbyDTgBxQn4PmoPU5MB9HOB9dUMqAD6ucCGciZEgFe71StN1RSIAPq5wAWwAqrRXE6FB2Co5sACaK6nxAMwlnPhABirSTAAzOVk6AGWahbkAFs1C2rAURYXsDqAqICVBYQBtKVDGKA7sY6/5Zi7QYDSucD6aK6mUJk9QwCduXV8UzWF8v0rAGCtp2WrZlC6g/sDknXr+LaKSMWajP4Aaz0vh1rKhVWkN8BeTih3qIo1CwbYywm51dNO0bbptDAUYyp+kkZUANfacI+18bAB7tXxHpIRGeBTH/D+gQIX4Fe9+ChDB3jWiNzBBlwrz0hxAf41vJM+JuDPtjdAdeZ4gJuA8ZXqTbEAbSvZtwVUNm75Aa27GbQEtO/n0A6A0NGiFQCjp0cbAEpXkxYAnEYO4QCkzjbBAKz+AcFFMNA6KKRhALyWMkk/BIDZRaPyyOn76hYhyk+tLgDsTiqlp1YHAH4vmeJTqx1A0U1n6AM4wx9fjWfuAJqOSs/JaANcKpp42kKyAOi6aj0moxlA2VfsIRmNgLupIoyDgQ1A3VtumJkB+ZkijpkZwNBfMDUBODosJqNmwKbiiM5FE4C0sV9xOvhQf/31lGd8lTTUqj1REhISEhISAfEXumiA5AUel8MAAAAASUVORK5CYII=" {
 		t.Fatal("received incorrect image url: " + config.ImageUrl.String())
@@ -145,46 +145,46 @@ func TestParseConfigFromEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 	if config.SecurityUserName != "fizz" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"fizz"`, config.SecurityUserName)
+		t.Fatalf("expected %s but received %s", `"fizz"`, config.SecurityUserName)
 	}
 	if config.SecurityUserPassword != "buzz" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"buzz"`, config.SecurityUserPassword)
+		t.Fatalf("expected %s but received %s", `"buzz"`, config.SecurityUserPassword)
 	}
 	if config.VaultToken != "bang" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"bang"`, config.VaultToken)
+		t.Fatalf("expected %s but received %s", `"bang"`, config.VaultToken)
 	}
 	if config.CredhubURL != "" {
-		t.Fatalf("expectedWithAppID %s but received %s", `""`, config.CredhubURL)
+		t.Fatalf("expected %s but received %s", `""`, config.CredhubURL)
 	}
 	if config.Port != ":8080" {
-		t.Fatalf("expectedWithAppID %s but received %s", `":8080"`, config.Port)
+		t.Fatalf("expected %s but received %s", `":8080"`, config.Port)
 	}
 	if config.ServiceID != "1234" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"1234"`, config.ServiceID)
+		t.Fatalf("expected %s but received %s", `"1234"`, config.ServiceID)
 	}
 	if config.VaultAddr != "http://localhost:8200/" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"http://localhost:8200/"`, config.VaultAddr)
+		t.Fatalf("expected %s but received %s", `"http://localhost:8200/"`, config.VaultAddr)
 	}
 	if config.VaultAdvertiseAddr != "https://some-domain.com/" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"https://some-domain.com/"`, config.VaultAdvertiseAddr)
+		t.Fatalf("expected %s but received %s", `"https://some-domain.com/"`, config.VaultAdvertiseAddr)
 	}
 	if config.ServiceName != "vault" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"vault"`, config.ServiceName)
+		t.Fatalf("expected %s but received %s", `"vault"`, config.ServiceName)
 	}
 	if config.ServiceDescription != "Vault, by Hashicorp" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"Vault, by Hashicorp"`, config.ServiceDescription)
+		t.Fatalf("expected %s but received %s", `"Vault, by Hashicorp"`, config.ServiceDescription)
 	}
 	if config.PlanName != "free" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"free"`, config.PlanName)
+		t.Fatalf("expected %s but received %s", `"free"`, config.PlanName)
 	}
 	if config.PlanDescription != "Can you believe it's opensource?" {
-		t.Fatalf("expectedWithAppID %s but received %s", `"Can you believe it's opensource?"`, config.PlanDescription)
+		t.Fatalf("expected %s but received %s", `"Can you believe it's opensource?"`, config.PlanDescription)
 	}
 	if len(config.ServiceTags) != 2 {
-		t.Fatalf("expectedWithAppID %d but received %d: %s", 2, len(config.ServiceTags), config.ServiceTags)
+		t.Fatalf("expected %d but received %d: %s", 2, len(config.ServiceTags), config.ServiceTags)
 	}
 	if config.VaultRenew != false {
-		t.Fatal("expectedWithAppID false but received true")
+		t.Fatal("expected false but received true")
 	}
 }
 
@@ -228,7 +228,7 @@ func TestParseConfigFromCredhub(t *testing.T) {
 
 	for expected, actual := range expectedVsActual {
 		if expected != actual {
-			t.Fatalf(`expectedWithAppID "%s" but received "%s"`, expected, actual)
+			t.Fatalf(`expected "%s" but received "%s"`, expected, actual)
 		}
 	}
 }
@@ -288,7 +288,7 @@ func TestCredhubConfigOverridesEnvConfig(t *testing.T) {
 
 	for expected, actual := range expectedVsActual {
 		if expected != actual {
-			t.Fatalf(`expectedWithAppID "%s" but received "%s"`, expected, actual)
+			t.Fatalf(`expected "%s" but received "%s"`, expected, actual)
 		}
 	}
 }
