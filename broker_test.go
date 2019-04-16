@@ -151,7 +151,7 @@ func TestBroker_Bind_Unbind_No_Application_ID(t *testing.T) {
 		t.Fatalf("expected a backends_shared map but received %+v", shared)
 	}
 	if sharedMap["organization"] != "cf/organization-guid/secret" {
-		t.Fatalf("expected cf/space-guid/secret but received %s", sharedMap["organization"])
+		t.Fatalf("expected cf/organization-guid/secret but received %s", sharedMap["organization"])
 	}
 	if sharedMap["space"] != "cf/space-guid/secret" {
 		t.Fatalf("expected cf/space-guid/secret but received %s", sharedMap["space"])
