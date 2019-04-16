@@ -25,14 +25,6 @@ path "cf/{{ .SpaceGUID }}/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "cf/{{ .ApplicationGUID }}" {
-  capabilities = ["list"]
-}
-
-path "cf/{{ .ApplicationGUID }}/*" {
-  capabilities = ["create", "read", "update", "delete", "list"]
-}
-
 path "cf/{{ .OrganizationGUID }}" {
   capabilities = ["list"]
 }
@@ -41,14 +33,29 @@ path "cf/{{ .OrganizationGUID }}/*" {
   capabilities = ["read", "list"]
 }
 `
+
+	ApplicationPolicyTemplate = `
+
+path "cf/{{ .ApplicationGUID }}" {
+  capabilities = ["list"]
+}
+
+path "cf/{{ .ApplicationGUID }}/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+`
 )
 
 // GeneratePolicy takes an io.Writer object and template input and renders the
 // resulting template into the writer.
-func GeneratePolicy(w io.Writer, i *instanceInfo) error {
-	tmpl, err := template.New("service").Parse(ServicePolicyTemplate)
+func GeneratePolicy(w io.Writer, info *instanceInfo) error {
+	policies := ServicePolicyTemplate
+	if info.ApplicationGUID != "" {
+		policies += ApplicationPolicyTemplate
+	}
+	tmpl, err := template.New("service").Parse(policies)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, i)
+	return tmpl.Execute(w, info)
 }
