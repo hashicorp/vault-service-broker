@@ -449,20 +449,23 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		return binding, b.errorf("no instance exists with ID %s", instanceID)
 	}
 
-	// The details.AppGUID isn't _required_ to be provided per the Open Service Broker API spec;
-	// however, in testing PCF's behavior, we found that it's always populated by the platform
-	instance.ApplicationGUID = details.AppGUID
+	if details.AppGUID != "" {
+		// The details.AppGUID isn't _required_ to be provided per the Open Service Broker API spec;
+		// however, in testing PCF's behavior, we found that it's always populated by the platform on
+		// later versions, but isn't by earlier versions.
+		instance.ApplicationGUID = details.AppGUID
 
-	// Ensure we have application-level mounts
-	mounts := map[string]string{
-		"/cf/" + instance.ApplicationGUID + "/secret":  "generic",
-		"/cf/" + instance.ApplicationGUID + "/transit": "transit",
-	}
+		// Ensure we have application-level mounts
+		mounts := map[string]string{
+			"/cf/" + instance.ApplicationGUID + "/secret":  "generic",
+			"/cf/" + instance.ApplicationGUID + "/transit": "transit",
+		}
 
-	// Mount the application-level backends
-	b.log.Printf("[DEBUG] creating mounts %s", mapToKV(mounts, ", "))
-	if err := b.idempotentMount(mounts); err != nil {
-		return binding, b.wErrorf(err, "failed to create mounts %s", mapToKV(mounts, ", "))
+		// Mount the application-level backends
+		b.log.Printf("[DEBUG] creating mounts %s", mapToKV(mounts, ", "))
+		if err := b.idempotentMount(mounts); err != nil {
+			return binding, b.wErrorf(err, "failed to create mounts %s", mapToKV(mounts, ", "))
+		}
 	}
 
 	// Generate the new policy
@@ -545,6 +548,12 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	b.binds[bindingID] = info
 
 	// Save the credentials
+	genericBackends := []string{"cf/" + instanceID + "/secret"}
+	transitBackends := []string{"cf/" + instanceID + "/transit"}
+	if details.AppGUID != "" {
+		genericBackends = append(genericBackends, "cf/" + details.AppGUID + "/secret")
+		transitBackends = append(transitBackends, "cf/" + details.AppGUID + "/transit")
+	}
 	binding.Credentials = map[string]interface{}{
 		"address": b.vaultAdvertiseAddr,
 		"auth": map[string]interface{}{
@@ -552,14 +561,8 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 			"token":    secret.Auth.ClientToken,
 		},
 		"backends": map[string]interface{}{
-			"generic": []string{
-				"cf/" + instanceID + "/secret",
-				"cf/" + details.AppGUID + "/secret",
-			},
-			"transit": []string{
-				"cf/" + instanceID + "/transit",
-				"cf/" + details.AppGUID + "/transit",
-			},
+			"generic": genericBackends,
+			"transit": transitBackends,
 		},
 		"backends_shared": map[string]interface{}{
 			"organization": "cf/" + instance.OrganizationGUID + "/secret",
