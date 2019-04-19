@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -277,6 +278,14 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			return
 
 		case reqURL == "/v1/auth/token/revoke-accessor" && r.Method == "POST":
+			body, _ := ioutil.ReadAll(r.Body)
+			bodyMap := make(map[string]string)
+			json.Unmarshal(body, &bodyMap)
+			if bodyMap["accessor"] == "invalid-accessor" {
+				w.WriteHeader(400)
+				w.Write([]byte(`{"errors":["1 error occurred:\n\t* invalid accessor\n\n"]}`))
+				return
+			}
 			w.WriteHeader(204)
 			return
 
@@ -398,8 +407,16 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			return
 
 		case reqURL == "/v1/cf/broker/instance-id/bad-accessor-test" && r.Method == "GET":
-			w.WriteHeader(400)
-			w.Write([]byte(`{"errors":["1 error occurred:\n\t* invalid accessor\n\n"]}`))
+			w.WriteHeader(200)
+			w.Write([]byte(`{
+				"auth": null,
+				"data": {
+					"json": "{\"OrganizationGUID\": \"organization-guid\", \"SpaceGUID\": \"space-guid\", \"Accessor\": \"invalid-accessor\"}"
+				},
+				"lease_duration": 2764800,
+				"lease_id": "",
+				"renewable": false
+			}`))
 			return
 
 		case reqURL == "/v1/cf/broker/instance-id/binding-id" && r.Method == "DELETE":
