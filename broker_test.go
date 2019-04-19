@@ -420,6 +420,7 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			return
 
 		case reqURL == "/v1/cf/broker/instance-id/binding-id" && r.Method == "DELETE":
+		case reqURL == "/v1/cf/broker/instance-id/bad-accessor-test" && r.Method == "DELETE":
 			w.WriteHeader(204)
 			return
 

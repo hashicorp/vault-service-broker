@@ -586,7 +586,7 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	}
 	if secret == nil || len(secret.Data) == 0 {
 		// The secret was already deleted previously, nothing further to do.
-		return nil
+		return b.deleteBinding(bindingID, path)
 	}
 
 	// Decode the binding info
@@ -601,12 +601,15 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	b.log.Printf("[DEBUG] revoking accessor %s for path %s", a, path)
 	if err := b.vaultClient.Auth().Token().RevokeAccessor(a); err != nil {
 		if strings.Contains(err.Error(), "invalid accessor") {
-			// The token has already been revoked.
-			return nil
+			// The token has already been revoked or has expired.
+			return b.deleteBinding(bindingID, path)
 		}
 		return b.wErrorf(err, "failed to revoke accessor %s", a)
 	}
+	return b.deleteBinding(bindingID, path)
+}
 
+func (b *Broker) deleteBinding(bindingID, path string) error {
 	// Delete the binding info
 	b.log.Printf("[DEBUG] deleting binding info at %s", path)
 	if _, err := b.vaultClient.Logical().Delete(path); err != nil {
@@ -624,8 +627,6 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		}
 	}
 	b.bindLock.Unlock()
-
-	// Done
 	return nil
 }
 
