@@ -600,6 +600,10 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	a := info.Accessor
 	b.log.Printf("[DEBUG] revoking accessor %s for path %s", a, path)
 	if err := b.vaultClient.Auth().Token().RevokeAccessor(a); err != nil {
+		if strings.Contains(err.Error(), "invalid accessor") {
+			// The token has already been revoked.
+			return nil
+		}
 		return b.wErrorf(err, "failed to revoke accessor %s", a)
 	}
 
