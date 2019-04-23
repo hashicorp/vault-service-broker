@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -162,6 +163,57 @@ func TestBroker_Bind_Unbind_No_Application_ID(t *testing.T) {
 	}
 }
 
+func TestBroker_Bind_Unbind_No_Access_Token(t *testing.T) {
+	env, closer := defaultEnvironment(t)
+	defer closer()
+
+	// Seed the broker with the results of provisioning an instance
+	// so binding can succeed.
+	env.Broker.instances["instance-id"] = &instanceInfo{
+		SpaceGUID:           "space-guid",
+		OrganizationGUID:    "organization-guid",
+		ServiceInstanceGUID: "instance-id",
+	}
+
+	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{
+		AppGUID: "app-id",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding.SyslogDrainURL != "" {
+		t.Fatalf("expected empty SyslogDrainURL but received %s", binding.SyslogDrainURL)
+	}
+	if binding.RouteServiceURL != "" {
+		t.Fatalf("expected empty RouteServiceURL but received %s", binding.RouteServiceURL)
+	}
+	if len(binding.VolumeMounts) != 0 {
+		t.Fatalf("expected no VolumeMounts but received %+v", binding.VolumeMounts)
+	}
+	credMap, ok := binding.Credentials.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected a credential map but received %+v", binding.Credentials)
+	}
+	shared, ok := credMap["backends_shared"]
+	if !ok {
+		t.Fatalf("expected backends_shared but they're not in %+v", credMap)
+	}
+	sharedMap, ok := shared.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected a backends_shared map but received %+v", shared)
+	}
+	if sharedMap["organization"] != "cf/organization-guid/secret" {
+		t.Fatalf("expected cf/organization-guid/secret but received %s", sharedMap["organization"])
+	}
+	if sharedMap["space"] != "cf/space-guid/secret" {
+		t.Fatalf("expected cf/space-guid/secret but received %s", sharedMap["space"])
+	}
+
+	if err := env.Broker.Unbind(env.Context, env.InstanceID, "bad-accessor-test", brokerapi.UnbindDetails{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBroker_Update(t *testing.T) {
 	env, closer := defaultEnvironment(t)
 	defer closer()
@@ -226,6 +278,14 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			return
 
 		case reqURL == "/v1/auth/token/revoke-accessor" && r.Method == "POST":
+			body, _ := ioutil.ReadAll(r.Body)
+			bodyMap := make(map[string]string)
+			json.Unmarshal(body, &bodyMap)
+			if bodyMap["accessor"] == "invalid-accessor" {
+				w.WriteHeader(400)
+				w.Write([]byte(`{"errors":["1 error occurred:\n\t* invalid accessor\n\n"]}`))
+				return
+			}
 			w.WriteHeader(204)
 			return
 
@@ -346,7 +406,21 @@ func defaultEnvironment(t *testing.T) (*Environment, func()) {
 			}`))
 			return
 
+		case reqURL == "/v1/cf/broker/instance-id/bad-accessor-test" && r.Method == "GET":
+			w.WriteHeader(200)
+			w.Write([]byte(`{
+				"auth": null,
+				"data": {
+					"json": "{\"OrganizationGUID\": \"organization-guid\", \"SpaceGUID\": \"space-guid\", \"Accessor\": \"invalid-accessor\"}"
+				},
+				"lease_duration": 2764800,
+				"lease_id": "",
+				"renewable": false
+			}`))
+			return
+
 		case reqURL == "/v1/cf/broker/instance-id/binding-id" && r.Method == "DELETE":
+		case reqURL == "/v1/cf/broker/instance-id/bad-accessor-test" && r.Method == "DELETE":
 			w.WriteHeader(204)
 			return
 

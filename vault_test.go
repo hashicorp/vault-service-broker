@@ -8,8 +8,8 @@ import (
 func TestGeneratePolicy(t *testing.T) {
 	w := new(bytes.Buffer)
 	info := &instanceInfo{
-		OrganizationGUID: "org-id",
-		SpaceGUID: "space-id",
+		OrganizationGUID:    "org-id",
+		SpaceGUID:           "space-id",
 		ServiceInstanceGUID: "service-instance-id",
 	}
 	if err := GeneratePolicy(w, info); err != nil {

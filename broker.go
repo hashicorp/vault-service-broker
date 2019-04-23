@@ -551,8 +551,8 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	genericBackends := []string{"cf/" + instanceID + "/secret"}
 	transitBackends := []string{"cf/" + instanceID + "/transit"}
 	if details.AppGUID != "" {
-		genericBackends = append(genericBackends, "cf/" + details.AppGUID + "/secret")
-		transitBackends = append(transitBackends, "cf/" + details.AppGUID + "/transit")
+		genericBackends = append(genericBackends, "cf/"+details.AppGUID+"/secret")
+		transitBackends = append(transitBackends, "cf/"+details.AppGUID+"/transit")
 	}
 	binding.Credentials = map[string]interface{}{
 		"address": b.vaultAdvertiseAddr,
@@ -586,7 +586,8 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	}
 	if secret == nil || len(secret.Data) == 0 {
 		// The secret was already deleted previously, nothing further to do.
-		return nil
+		b.log.Printf("[WARN] secret appears to have been deleted previously, unbinding")
+		return b.deleteBinding(bindingID, path)
 	}
 
 	// Decode the binding info
@@ -600,9 +601,17 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 	a := info.Accessor
 	b.log.Printf("[DEBUG] revoking accessor %s for path %s", a, path)
 	if err := b.vaultClient.Auth().Token().RevokeAccessor(a); err != nil {
+		if strings.Contains(err.Error(), "invalid accessor") {
+			// The token has already been revoked or has expired.
+			b.log.Printf("[WARN] token has already been revoked or has expired, unbinding")
+			return b.deleteBinding(bindingID, path)
+		}
 		return b.wErrorf(err, "failed to revoke accessor %s", a)
 	}
+	return b.deleteBinding(bindingID, path)
+}
 
+func (b *Broker) deleteBinding(bindingID, path string) error {
 	// Delete the binding info
 	b.log.Printf("[DEBUG] deleting binding info at %s", path)
 	if _, err := b.vaultClient.Logical().Delete(path); err != nil {
@@ -620,8 +629,6 @@ func (b *Broker) Unbind(ctx context.Context, instanceID, bindingID string, detai
 		}
 	}
 	b.bindLock.Unlock()
-
-	// Done
 	return nil
 }
 
