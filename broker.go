@@ -442,9 +442,7 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	}
 
 	if details.AppGUID != "" {
-		// The details.AppGUID isn't _required_ to be provided per the Open Service Broker API spec;
-		// however, in testing PCF's behavior, we found that it's always populated by the platform on
-		// later versions, but isn't by earlier versions.
+		// The details.AppGUID isn't _required_ to be provided per the Open Service Broker API spec
 		instance.ApplicationGUID = details.AppGUID
 
 		// Ensure we have application-level mounts
@@ -548,9 +546,9 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 	// Save the credentials
 	genericBackends := []string{"cf/" + instanceID + "/secret"}
 	transitBackends := []string{"cf/" + instanceID + "/transit"}
-	if details.AppGUID != "" {
-		genericBackends = append(genericBackends, "cf/"+details.AppGUID+"/secret")
-		transitBackends = append(transitBackends, "cf/"+details.AppGUID+"/transit")
+	if instance.ApplicationGUID != "" {
+		genericBackends = append(genericBackends, "cf/"+instance.ApplicationGUID+"/secret")
+		transitBackends = append(transitBackends, "cf/"+instance.ApplicationGUID+"/transit")
 	}
 	binding.Credentials = map[string]interface{}{
 		"address": b.vaultAdvertiseAddr,
@@ -565,6 +563,7 @@ func (b *Broker) Bind(ctx context.Context, instanceID, bindingID string, details
 		"backends_shared": map[string]interface{}{
 			"organization": "cf/" + instance.OrganizationGUID + "/secret",
 			"space":        "cf/" + instance.SpaceGUID + "/secret",
+			"application":  "cf/" + instance.ApplicationGUID + "/secret",
 		},
 	}
 	return binding, nil
