@@ -7,10 +7,10 @@ import (
 
 func TestGeneratePolicy(t *testing.T) {
 	w := new(bytes.Buffer)
-	info := &instanceInfo{
-		OrganizationGUID:    "org-id",
-		SpaceGUID:           "space-id",
-		ServiceInstanceGUID: "service-instance-id",
+	info := &ServicePolicyTemplateInput{
+		OrgID:      "org-id",
+		SpaceID:    "space-id",
+		InstanceID: "service-instance-id",
 	}
 	if err := GeneratePolicy(w, info); err != nil {
 		t.Fatal(err)
@@ -21,7 +21,7 @@ func TestGeneratePolicy(t *testing.T) {
 	}
 
 	w = new(bytes.Buffer)
-	info.ApplicationGUID = "application-id"
+	info.ApplicationID = "application-id"
 	if err := GeneratePolicy(w, info); err != nil {
 		t.Fatal(err)
 	}

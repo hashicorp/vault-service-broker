@@ -70,9 +70,8 @@ func TestBroker_Bind_Unbind(t *testing.T) {
 	// Seed the broker with the results of provisioning an instance
 	// so binding can succeed.
 	env.Broker.instances["instance-id"] = &instanceInfo{
-		SpaceGUID:           "space-guid",
-		OrganizationGUID:    "organization-guid",
-		ServiceInstanceGUID: "instance-id",
+		SpaceGUID:        "space-guid",
+		OrganizationGUID: "organization-guid",
 	}
 
 	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{
@@ -121,9 +120,8 @@ func TestBroker_Bind_Unbind_No_Application_ID(t *testing.T) {
 	// Seed the broker with the results of provisioning an instance
 	// so binding can succeed.
 	env.Broker.instances["instance-id"] = &instanceInfo{
-		SpaceGUID:           "space-guid",
-		OrganizationGUID:    "organization-guid",
-		ServiceInstanceGUID: "instance-id",
+		SpaceGUID:        "space-guid",
+		OrganizationGUID: "organization-guid",
 	}
 
 	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{})
@@ -170,9 +168,8 @@ func TestBroker_Bind_Unbind_No_Access_Token(t *testing.T) {
 	// Seed the broker with the results of provisioning an instance
 	// so binding can succeed.
 	env.Broker.instances["instance-id"] = &instanceInfo{
-		SpaceGUID:           "space-guid",
-		OrganizationGUID:    "organization-guid",
-		ServiceInstanceGUID: "instance-id",
+		SpaceGUID:        "space-guid",
+		OrganizationGUID: "organization-guid",
 	}
 
 	binding, err := env.Broker.Bind(env.Context, env.InstanceID, env.BindingID, brokerapi.BindDetails{
