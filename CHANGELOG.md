@@ -1,5 +1,11 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
+## v0.5.2 (May 13, 2019)
+BUG FIXES:
+- [#49](https://github.com/hashicorp/vault-service-broker/pull/49) fixes an issue during upgrades when broker version <= 0.2.0
+- [#48](https://github.com/hashicorp/vault-service-broker/pull/48) continue the unbind when the token has already expired or revoked out of band
+- [#47](https://github.com/hashicorp/vault-service-broker/pull/47) prevent errors when PCF does not provide an application id
+
 ## v0.5.1 (February 15, 2019)
 BUG FIXES:
 - [#43](https://github.com/hashicorp/vault-service-broker/pull/43) resolves a bug where it was impossible to unbind if a token had been deleted out-of-band
