@@ -9,50 +9,60 @@ const (
 	// ServicePolicyTemplate is the template used to generate a Vault policy on
 	// service create.
 	ServicePolicyTemplate string = `
-path "cf/{{ .ServiceInstanceGUID }}" {
+path "cf/{{ .InstanceID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .ServiceInstanceGUID }}/*" {
+path "cf/{{ .InstanceID }}/*" {
 	capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "cf/{{ .SpaceGUID }}" {
+path "cf/{{ .SpaceID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .SpaceGUID }}/*" {
+path "cf/{{ .SpaceID }}/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "cf/{{ .OrganizationGUID }}" {
+path "cf/{{ .OrgID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .OrganizationGUID }}/*" {
+path "cf/{{ .OrgID }}/*" {
   capabilities = ["read", "list"]
 }
-`
-
-	ApplicationPolicyTemplate = `
-path "cf/{{ .ApplicationGUID }}" {
+{{ if ne .ApplicationID "" }}
+path "cf/{{ .ApplicationID }}" {
   capabilities = ["list"]
 }
 
-path "cf/{{ .ApplicationGUID }}/*" {
+path "cf/{{ .ApplicationID }}/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
+{{ end -}}
 `
 )
 
+// ServicePolicyTemplateInput is used as input to the ServicePolicyTemplate.
+type ServicePolicyTemplateInput struct {
+	// InstanceID is the unique ID of the service instance.
+	InstanceID string
+
+	// SpaceID is the unique ID of the space.
+	SpaceID string
+
+	// OrgID is the unique ID of the space.
+	OrgID string
+
+	// ApplicationID is the unique ID of the service.
+	ApplicationID string
+}
+
 // GeneratePolicy takes an io.Writer object and template input and renders the
 // resulting template into the writer.
-func GeneratePolicy(w io.Writer, info *instanceInfo) error {
-	policies := ServicePolicyTemplate
-	if info.ApplicationGUID != "" {
-		policies += ApplicationPolicyTemplate
-	}
-	tmpl, err := template.New("service").Parse(policies)
+func GeneratePolicy(w io.Writer, info *ServicePolicyTemplateInput) error {
+	tmpl, err := template.New("service").Parse(ServicePolicyTemplate)
 	if err != nil {
 		return err
 	}
