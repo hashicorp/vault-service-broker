@@ -397,7 +397,7 @@ path "sys/mounts/cf/*" {
 }
 
 # Create policies with the "cf-*" prefix
-path "sys/policy/cf-*" {
+path "sys/policies/acl/cf-*" {
   capabilities = ["create", "update", "delete"]
 }
 
