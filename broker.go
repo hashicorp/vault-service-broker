@@ -89,6 +89,9 @@ type Broker struct {
 	stopLock sync.Mutex
 	running  bool
 	stopCh   chan struct{}
+
+	// semaphore to limit concurrency during startup
+	sem chan struct{}
 }
 
 // Start is used to start the broker
@@ -106,6 +109,9 @@ func (b *Broker) Start() error {
 
 	// Create the stop channel
 	b.stopCh = make(chan struct{})
+
+	// Create the semaphore channel for rate limiting during restoreBind
+	b.sem = make(chan struct{}, 20)
 
 	// Start background renewal
 	if b.vaultRenewToken {
@@ -709,13 +715,18 @@ func (b *Broker) renewAuth(token, accessor string, stopCh <-chan struct{}) {
 	// herd in the event a broker is restarted with a lot of bindings.
 	time.Sleep(time.Duration(rand.Intn(5000)) * time.Millisecond)
 
+	// Wait for slot in semaphore channel
+	b.sem <- struct{}{}
+
 	// Use renew-self instead of lookup here because we want the freshest renew
 	// and we can find out if it's renewable or not.
 	secret, err := b.vaultClient.Auth().Token().RenewTokenAsSelf(token, 0)
 	if err != nil {
 		b.log.Printf("[ERR] renew-token (%s): error looking up self: %s", accessor, err)
+		<-b.sem
 		return
 	}
+	<-b.sem
 
 	renewer, err := b.vaultClient.NewRenewer(&api.RenewerInput{
 		Secret: secret,
