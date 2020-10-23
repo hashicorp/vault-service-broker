@@ -19,7 +19,8 @@ import (
 
 const (
 	// VaultPeriodicTTL is the token role periodic TTL.
-	VaultPeriodicTTL = 5 * 24 * 60 * 60
+	VaultPeriodicTTL        = 5 * 24 * 60 * 60
+	RenewLimitChannelBuffer = 10
 )
 
 // Ensure we implement the broker API
@@ -111,7 +112,7 @@ func (b *Broker) Start() error {
 	b.stopCh = make(chan struct{})
 
 	// Create the semaphore channel for rate limiting during restoreBind
-	b.sem = make(chan struct{}, 20)
+	b.sem = make(chan struct{}, RenewLimitChannelBuffer)
 
 	// Start background renewal
 	if b.vaultRenewToken {
