@@ -1,7 +1,7 @@
 #
 # Builder
 #
-FROM golang:1.8 AS builder
+FROM docker.mirror.hashicorp.services/golang:1.8 AS builder
 LABEL maintainer "Seth Vargo <seth@sethvargo.com> (@sethvargo)"
 
 WORKDIR /go/src/github.com/hashicorp/vault-service-broker
@@ -20,7 +20,7 @@ RUN \
 #
 # Final
 #
-FROM scratch
+FROM docker.mirror.hashicorp.services/scratch
 LABEL maintainer "Seth Vargo <seth@sethvargo.com> (@sethvargo)"
 
 ADD "https://curl.haxx.se/ca/cacert.pem" "/etc/ssl/certs/ca-certificates.crt"
