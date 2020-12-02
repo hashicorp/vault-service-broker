@@ -1,6 +1,6 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
-## Unreleased
+## v0.5.4 (Dec 2, 2020)
 BUG FIXES:
 - [#57](https://github.com/hashicorp/vault-service-broker/pull/57) fixes an issue where the broker sends too many requests to Vault during startup
 
