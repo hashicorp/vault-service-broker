@@ -210,8 +210,8 @@ $ cf create-service hashicorp-vault shared my-vault
 ```
 
 With a service instance in place, you are ready to bind an app. Suppose we have
-an app called 'my-app'. An example of my-app can be found at 
-https://github.com/tyrannosaurus-becks/cf-sample-app-go, along with instructions on how to deploy it.
+an app called 'my-app'. An example of my-app can be found in the `example` directory
+along with instructions on how to deploy it.
 
 ```shell
 $ cf bind-service my-app my-vault
