@@ -1,4 +1,0 @@
----
-networks:
-- name: public
-  type: vip
