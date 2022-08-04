@@ -18,8 +18,6 @@ PROJECT := $(CURRENT_DIR:$(GOPATH)/src/%=%)
 OWNER := $(notdir $(patsubst %/,%,$(dir $(PROJECT))))
 NAME := $(notdir $(PROJECT))
 VERSION := $(shell awk -F\" '/Version/ { print $$2; exit }' "version.go")
-EXTERNAL_TOOLS = \
-	github.com/golang/dep/cmd/dep
 
 # Current system information
 GOOS ?= $(shell go env GOOS)
@@ -31,20 +29,12 @@ LD_FLAGS ?= -s -w
 # List of tests to run
 TEST ?= ./...
 
-# bootstrap installs the necessary go tools for development or build.
-bootstrap:
-	@echo "==> Bootstrapping ${PROJECT}"
-	@for t in ${EXTERNAL_TOOLS}; do \
-		echo "--> Installing $$t" ; \
-		go get -u "$$t"; \
-	done
-.PHONY: bootstrap
-
 # build builds the binary into pkg/
 build:
 	@echo "==> Building ${NAME} for ${GOOS}/${GOARCH}"
 	@env \
 		-i \
+		HOME="${HOME}" \
 		PATH="${PATH}" \
 		CGO_ENABLED="0" \
 		GOOS="${GOOS}" \
@@ -53,18 +43,12 @@ build:
 		go build -a -o "pkg/${GOOS}_${GOARCH}/${NAME}" -ldflags "${LD_FLAGS}"
 .PHONY: build
 
-# deps updates all dependencies for this project.
-deps:
-	@echo "==> Updating deps for ${PROJECT}"
-	@dep ensure -update
-	@dep prune
-.PHONY: deps
-
 # dev builds and installs the project locally.
 dev:
 	@echo "==> Installing ${NAME} for ${GOOS}/${GOARCH}"
 	@env \
 		-i \
+		HOME="${HOME}" \
 		PATH="${PATH}" \
 		CGO_ENABLED="0" \
 		GOOS="${GOOS}" \
@@ -80,7 +64,6 @@ docker:
 		--rm \
 		--force-rm \
 		--no-cache \
-		--squash \
 		--compress \
 		--file="docker/Dockerfile" \
 		--build-arg="LD_FLAGS=${LD_FLAGS}" \
