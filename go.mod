@@ -5,7 +5,7 @@ go 1.18
 require (
 	code.cloudfoundry.org/clock v1.0.0
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	code.cloudfoundry.org/uaa-go-client v0.0.0-20181022172934-480082394a82
+	code.cloudfoundry.org/uaa-go-client v0.0.0-20211019180233-425e185131b9
 	github.com/cloudfoundry-community/go-credhub v0.9.1-0.20190117231749-2bd52e01c95d
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/vault v1.0.3-0.20190128224925-679c09e60f9a
@@ -28,7 +28,6 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/chrismalek/oktasdk-go v0.0.0-20181212195951-3430665dfaa0 // indirect
 	github.com/denisenkom/go-mssqldb v0.12.2 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/drewolson/testflight v1.0.0 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20220628180508-bed46d1be614 // indirect
 	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
@@ -39,6 +38,7 @@ require (
 	github.com/go-ldap/ldap v3.0.3+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/gocql/gocql v1.2.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
