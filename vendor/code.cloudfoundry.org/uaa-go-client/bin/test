@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e -u -x
-
-cd $(dirname "${BASH_SOURCE[0]}")/..
-
-go install github.com/onsi/ginkgo/ginkgo
-
-ginkgo -r -failOnPending -randomizeAllSpecs -race -p "$@"
