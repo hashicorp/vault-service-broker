@@ -38,7 +38,6 @@ func main() {
 
 	// Setup the vault client
 	vaultClientConfig := api.DefaultConfig()
-	vaultClientConfig.HttpClient = cleanhttp.DefaultClient()
 
 	vaultClient, err := api.NewClient(vaultClientConfig)
 	if err != nil {
