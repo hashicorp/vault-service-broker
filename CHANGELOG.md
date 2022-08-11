@@ -1,5 +1,9 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
+## Unreleased
+IMPROVEMENTS:
+- [#66](https://github.com/hashicorp/vault-service-broker/pull/66) allow environment variables like `VAULT_SKIP_VERIFY` to be picked up by the Vault client
+
 ## v0.5.4 (Dec 2, 2020)
 BUG FIXES:
 - [#57](https://github.com/hashicorp/vault-service-broker/pull/57) fixes an issue where the broker sends too many requests to Vault during startup
