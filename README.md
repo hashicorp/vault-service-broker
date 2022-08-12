@@ -397,7 +397,7 @@ path "sys/mounts/cf/*" {
 }
 
 # Create policies with the "cf-*" prefix
-path "sys/policy/cf-*" {
+path "sys/policies/acl/cf-*" {
   capabilities = ["create", "update", "delete"]
 }
 
@@ -430,7 +430,7 @@ Cloud Foundry Vault Broker will renew this periodic token automatically.
 1. Create the policy specific for the broker:
 
   ```shell
-  $ vault write sys/policy/cf-broker rules=@cf-broker.hcl
+  $ vault write cf-broker cf-broker.hcl
   ```
 
 1. Create a periodic token
@@ -530,7 +530,7 @@ policy may be modified by a user with permissions in Vault to add additional
 capabilities. The default policy can be discovered by reading it:
 
 ```sh
-$ vault read -field=rules sys/policy/cf-<instance_id>
+$ vault policy read cf-<instance_id>
 # ...
 ```
 
