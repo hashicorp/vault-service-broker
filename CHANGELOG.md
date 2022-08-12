@@ -1,6 +1,9 @@
 # Cloud Foundry HashiCorp Vault Broker Changelog
 
-## Unreleased
+## v0.6.0 (Aug 11, 2022)
+CHANGES:
+- [#65](https://github.com/hashicorp/vault-service-broker/pull/65) migrated to go modules, use go 1.18 in tests, and updated to vault/api@v1.7.2
+
 IMPROVEMENTS:
 - [#66](https://github.com/hashicorp/vault-service-broker/pull/66) allow environment variables like `VAULT_SKIP_VERIFY` to be picked up by the Vault client
 
