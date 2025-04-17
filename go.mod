@@ -22,7 +22,7 @@ require (
 	github.com/drewolson/testflight v1.0.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-test/deep v1.0.8 // indirect
-	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
