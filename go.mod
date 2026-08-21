@@ -1,6 +1,6 @@
 module github.com/hashicorp/vault-service-broker
 
-go 1.24.0
+go 1.20
 
 require (
 	code.cloudfoundry.org/clock v1.0.0
